@@ -109,7 +109,6 @@ function SketchfabCredit({ model }) {
       “{model.title}” by <a href={model.authorUrl} target="_blank" rel="noreferrer">{model.author}</a> on{" "}
       <a href={model.modelUrl} target="_blank" rel="noreferrer">Sketchfab</a>,{" "}
       <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>.
-      From CompuClass {model.source}.
     </figcaption>
   );
 }
@@ -151,7 +150,7 @@ export default function PartModels({ part, nonce }) {
       <header className="card-head">
         <div>
           <h2>3D parts</h2>
-          <p>The same Sketchfab models as CompuClass. Drag to rotate, pinch or scroll to zoom. If a model cannot load, the offline PC is shown instead.</p>
+          <p>One 3D model for each part. Drag to rotate, pinch or scroll to zoom. If a model cannot load, the offline PC is shown instead.</p>
         </div>
       </header>
       <div className="part-switch" role="group" aria-label="Which 3D part">

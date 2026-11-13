@@ -60,6 +60,7 @@ export default function WindowsStation({ subs, focus, onSaved }) {
             className="win-frame"
             title="Windows 11 simulator from win11.blueedge.me"
             src="https://win11.blueedge.me/"
+            loading="lazy"
           />
           <p className="win-credit">
             Windows 11 simulator by <a href="https://win11.blueedge.me/" target="_blank" rel="noreferrer">win11.blueedge.me</a>.
