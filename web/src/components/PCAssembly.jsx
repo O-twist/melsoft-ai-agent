@@ -36,7 +36,7 @@ function Slot({ part, state }) {
  * (see assembly.js), and the finished or stopped attempt is saved in the Phase 2 schema for the next
  * practical run, where the team marks it from its log.
  */
-export default function PCAssembly({ subs }) {
+export default function PCAssembly({ subs, focus }) {
   const [learner, setLearner] = useState("");
   const [attempt, setAttempt] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -56,6 +56,9 @@ export default function PCAssembly({ subs }) {
   useEffect(() => {
     listLiveAttempts().then(setLive).catch(() => {});
   }, []);
+  useEffect(() => {
+    if (focus?.learnerId) setLearner(focus.learnerId);
+  }, [focus?.learnerId, focus?.step, focus?.nonce]);
   useEffect(() => {
     if (!running) return undefined;
     const timer = setInterval(() => setNow(Date.now()), 500);
@@ -145,6 +148,14 @@ export default function PCAssembly({ subs }) {
         </div>
       </header>
 
+      {focus?.step && (
+        <p className="rescue-note" role="status">
+          Catch-up step: <b>{PARTS.find((part) => part.id.toLowerCase() === String(focus.step).toLowerCase())?.name || focus.step}</b>.
+          {focus.learnerId ? ` ${names[focus.learnerId] || focus.learnerId} is selected.` : " Choose the learner, then start the build."}
+          {" "}Earlier parts have to go in first. The part is highlighted in the tray once the build starts.
+        </p>
+      )}
+
       {live.length > 0 && (
         <p className="lab-live">
           Recorded live, and used in the next practical run:{" "}
@@ -219,7 +230,7 @@ export default function PCAssembly({ subs }) {
                 {remaining.map((p) => (
                   <li key={p.id} className="tray-item">
                     <div
-                      className={`part-card ${drag?.id === p.id ? "lifted" : ""} ${running ? "" : "idle"}`}
+                      className={`part-card ${drag?.id === p.id ? "lifted" : ""} ${running ? "" : "idle"} ${focus?.step && p.id.toLowerCase() === String(focus.step).toLowerCase() ? "is-focus" : ""}`}
                       onPointerDown={(e) => startDrag(e, p.id)}
                       onPointerMove={moveDrag}
                       onPointerUp={endDrag}

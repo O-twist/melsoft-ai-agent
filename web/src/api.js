@@ -64,6 +64,16 @@ export function uploadPages(files, batch = null) {
 
 /** Keep an attempt from the virtual lab for the next practical run. Returns { ok, saved, log }. */
 export const saveAttempt = (record) => post("/api/attempt", record);
+export const runWeek2 = (learnerId) => post("/api/week2", learnerId ? { learner: learnerId } : {});
+export const resetWeek2 = () => post("/api/week2", { reset: true });
+export const submitWindows = (learnerId, answers) => post("/api/windows", { learner_id: learnerId, answers });
+
+/** The Windows checklist, without the answers the Reviewer is holding. */
+export async function windowsTasks() {
+  const res = await fetch("/api/windows");
+  if (!res.ok) throw new Error("Could not load the Windows tasks.");
+  return res.json();
+}
 
 /** The attempts recorded live in the virtual lab: [{ learner_id, saved }]. */
 export async function listLiveAttempts() {

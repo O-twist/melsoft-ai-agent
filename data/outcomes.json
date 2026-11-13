@@ -15,6 +15,11 @@
     {"id": "H3", "assessment": "practical", "text": "Install the CPU and RAM in the correct socket and slots before any expansion card.", "criteria": ["order", "correctness"]},
     {"id": "H4", "assessment": "practical", "text": "Fit expansion cards and storage in the correct slots and bays.", "criteria": ["correctness"]},
     {"id": "H5", "assessment": "practical", "text": "Connect the power supply last and check the build before switching on.", "criteria": ["order", "correctness"]},
-    {"id": "H6", "assessment": "practical", "text": "Plan a build in advance and complete it independently within the time allowed.", "criteria": ["efficiency"]}
+    {"id": "H6", "assessment": "practical", "text": "Plan a build in advance and complete it independently within the time allowed.", "criteria": ["efficiency"]},
+
+    {"id": "S1", "assessment": "windows", "text": "Create and name a folder on the desktop.", "criteria": []},
+    {"id": "S2", "assessment": "windows", "text": "Rename a file or folder and say what it was called.", "criteria": []},
+    {"id": "S3", "assessment": "windows", "text": "Change the desktop wallpaper from Personalisation.", "criteria": []},
+    {"id": "S4", "assessment": "windows", "text": "Find the device name and model on the System page.", "criteria": []}
   ]
 }

@@ -1,43 +1,57 @@
-# Marking Colleague
+# LabLess
 
-**The problem.** A Grade 10 English teacher with a class of essays spends a weekend marking, moderating and writing feedback, and much of the work arrives on paper. Marking Colleague is a digital colleague, not a chatbot: it takes that goal, plans the work, does it with tools, checks its own work, fixes what fails, and hands back finished files.
+An AI teaching colleague for under-resourced South African schools that marks theory and practical work, moderates itself, finds learners at risk, and builds and tracks their catch-up.
 
-A team of AI agents that takes one goal from a teacher ("mark these essays and send every learner feedback") and finishes the job: it plans the work, marks every essay against the rubric, second-marks every essay blind, corrects its own mistakes, writes personal feedback, and delivers a mark sheet and a class report.
+Built for the Melsoft Colleague Zero hackathon. LabLess is a team of seven agents — Clerk, Marker, Reviewer, Planner, Coach, Designer and Messenger — on one loop: **Plan → Do → Check → Correct → Deliver**. The sample class is twelve Grade 12 CAT learners. With no API key the whole workflow runs offline, and it comes out the same way every time.
 
-Ask for more in the same goal, or hand it photos of handwritten scripts, and more colleagues join in:
+## The loop
 
-- **The practical colleague.** Switch the goal bar to **PC assembly practical** and the same team marks learners' attempts at assembling a PC in the virtual lab, from each attempt's log, against a practical rubric and hardware outcomes.
-- **The intake colleague.** Add photos of handwritten pages and the Clerk transcribes them word for word, matches each name to the class list, checks the page numbers, and turns each script into a submission that is marked exactly like a typed essay.
+1. **Plan.** The Planner reads the goal, the class and the work, and decides who is needed.
+2. **Do.** The Clerk reads photographed scripts when the goal includes them. The Marker marks the theory paper and the PC assembly practical. The Coach writes a catch-up plan. The Designer drafts the next lesson.
+3. **Check.** The Reviewer marks again without seeing the first mark, and checks the Windows proof answers. Code checks quotes, totals, the attempt log and the plan.
+4. **Correct.** Anything that fails goes back once. If it still fails, it is held for the teacher. Nothing uncertain is sent to a learner.
+5. **Deliver.** The Messenger writes feedback and the score report. The teacher sees who is at risk. **Week 2** runs the loop again on the rescue plan and shows the risk score, the band and the report before and after.
 
-- **The learner support colleague.** "Tell me who is falling behind" brings in the Coach, who spots learners falling behind, works out why and prepares a personal catch-up plan for each.
-- **The curriculum colleague.** "Draft the next lesson" brings in the Designer, who drafts a lesson plan for the class's weakest area, builds matching exercises and has them checked against the learning outcomes.
+## How the judging criteria are met
 
-Built for Colleague Zero (multi-agent workflows for education).
+- **It gives reasons.** Every risk score says why, against the pass line, with the attempt log or the learner's own words. A learner who passes theory and is still High risk gets a line that names the practical gaps. Bongani Sithole is the sample: 57/100, Pass, and High, because the practical shows gaps.
+- **It corrects itself.** Blind second marking, evidence checks, log ceilings, and the "How we corrected ourselves" panel. A planted fault is caught without being announced.
+- **It executes.** The team finishes the job: a mark sheet, feedback, catch-up plans, a lesson and a score report. Week 2 rescores the class after the rescue week.
+- **It collaborates.** Seven agents share one plan. The Reviewer never sees the Marker's mark. The Designer never sees a learner's name. The teacher decides anything the team will not.
+- **It serves education.** Grade 12 CAT theory, PC assembly (H1–H6) and Windows (S1–S4). Each gap in the score report opens the lab step, the 3D part, or the matching Windows task.
 
-## Run it
+## Run it in mock mode
 
-Build the dashboard once (needs Node 20+), then start the server (needs Python 3.10+, no packages):
+No API key, and no network, except the Windows simulator iframe if you open it.
 
 ```
 cd web
 npm install
+npm test
 npm run build
 cd ..
+python -m unittest discover tests
 python run.py
 ```
 
-Open http://localhost:8000 and press **Start work**. The **Try** buttons under the goal box fill in goals that bring in different parts of the team; **The whole job** uses the six marking agents, and adding photos brings in the Clerk as the seventh.
+Open http://localhost:8000. The header says **Offline demo mode**. Press **Week 2** on Learners at risk to see the before and after. Open a score report and follow a catch-up link into the lab, the 3D part, or the Windows checklist.
 
-While working on the dashboard, run `python run.py` in one terminal and `npm run dev` inside `web` in another, then open http://localhost:5173. Changes appear immediately and API calls are forwarded to the Python server.
+While working on the dashboard, run `python run.py` in one terminal and `npm run dev` inside `web` in another, then open http://localhost:5173. API calls are forwarded to the Python server.
 
-Without an API key it runs in an offline mock mode that marks with simple text heuristics, so the whole workflow can be shown with no internet. For real marking, put a key in `.env`:
+`npm test` uses Node's built-in test runner (`node --test src/*.test.js`), which works on Node 24. The shell expands the pattern, so a quoted `**` glob is not required.
+
+For real marking, put a key in `.env` (do not commit that file):
 
 - `GEMINI_API_KEY`, from Google AI Studio, and/or
-- `OPENROUTER_API_KEY`, from openrouter.ai. By default it uses `openrouter/free`, which hands each request to a free model that is up. Set `OPENROUTER_MODEL` to always use one model, and `OPENROUTER_VISION_MODEL` to name the model that reads photos (it must accept images).
+- `OPENROUTER_API_KEY`, from openrouter.ai. By default it uses `openrouter/free`. Set `OPENROUTER_MODEL` to pin one model, and `OPENROUTER_VISION_MODEL` for the model that reads photos.
 
-With both keys, Gemini does the work. If Gemini is busy, unreachable or refuses the request, OpenRouter takes over for the rest of that run and the run log says so. The next run tries Gemini first again.
+With both keys, Gemini does the work. If Gemini is busy, unreachable or refuses the request, OpenRouter takes over for the rest of that run. Week 2 and the Windows proof check never call a model: they stay deterministic.
 
-Tests: `python -m unittest discover tests` (all offline; `tests/test_ingest.py` covers the handwritten scripts, `tests/test_practical.py` the PC assembly practical, `tests/test_live_lab.py` the virtual lab). The virtual lab's own rules are tested with Node's built-in runner: `npm test` inside `web`.
+## Credits
+
+- **3D model.** “Personal_computer” by alessiaspedicati (Sketchfab), [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). The file is local, in `web/public/models/`. See `web/public/models/CREDITS.md`. The credit is shown beside the viewer.
+- **Windows simulator.** [win11.blueedge.me](https://win11.blueedge.me/) (Win11 in React), shown in an iframe. It does not send results back. The checklist beside it is LabLess; the Reviewer checks the proof answers.
+- **CompuClass.** The PC lab and the Windows screen started in the team's earlier app, [CompuClass v1.5](https://github.com/Channel-Zero/Compuclass-v1.5) (and [CompuClass v1.0, lutho_branch](https://github.com/Tkumalo-dev/CompuClass-v.1.0)). `web/src/assembly.js` and `web/src/components/PCAssembly.jsx` were already a web port of `PCAssemblyScreen.js`. This change adapts the iframe from `screens/Windows11SimulatorScreen.js` into `web/src/components/WindowsStation.jsx` and adds the task checklist. CompuClass's per-part view is a Sketchfab embed that needs the network, so a catch-up stays on the local CC BY 4.0 model and aims the camera at the part (for example the RAM).
 
 ## How to demo it
 
@@ -53,6 +67,10 @@ Tests: `python -m unittest discover tests` (all offline; `tests/test_ingest.py` 
 6. Download **All pages (PDF)**, each learner's PDF and the **Clerk's report** from the card. Everything is also in `output/<run>/scripts/`.
 7. **The virtual lab.** With **PC assembly practical** selected, choose a learner in the **Virtual lab** card, press **Start the build** and drag the parts in (try one out of turn, and drop one off its slot). **Save for marking**, then run **The whole job**: that learner is marked from the attempt just made, and the lesson shows the 3D PC.
 8. **The PC assembly practical.** Switch the goal bar to **PC assembly practical**, pick **The whole job**, tick **Inject a fault** and press **Start work**. The planted mark gives Sipho full marks for build order although his log shows two parts tried out of turn: code rejects it against the log ("at most 9") and the Reviewer's blind mark disagrees too. Kabelo, Ruan and Bongani get hardware catch-up plans, the Designer's lesson targets build order, and the cross-check sends the lesson back once because it had no support work for Kabelo's efficiency gap.
+9. **Passed theory, still High risk.** On **Score reports**, open Bongani Sithole. The report is 57/100, Pass, and High. The line under the risk score says he passed theory, but the practical shows gaps, including the RAM.
+10. **Catch-up links.** On that report, press **Open the 3D model focused on the RAM**. The marking desk opens the 3D viewer on the RAM, with the CC BY 4.0 credit. A build-order gap opens the virtual lab on that step. A Windows gap opens that task in the checklist.
+11. **Windows checklist.** On the marking desk, the simulator from win11.blueedge.me sits beside four tasks (create a folder, rename a file, change the wallpaper, find system info). Choose a learner, answer the proof questions and press **Hand in the proofs**. The Reviewer agrees or disagrees, and the result feeds S1–S4 on the risk score and the score report. A correct system-info proof is the device name and model on Settings → System (the page does not show a RAM figure).
+12. **Week 2.** On **Learners at risk**, press **Week 2**. The loop runs again for the High and Medium learners. The table shows each risk score, band and report score before and after. Open **Score reports** and switch to **Week 2** to read the updated report. **Their week 2** does the same for one learner. It is deterministic in mock mode and does not change the sample files.
 
 ## The team
 
@@ -61,7 +79,7 @@ Tests: `python -m unittest discover tests` (all offline; `tests/test_ingest.py` 
 | Planner | Reads the goal and the submissions, decides whether photographed scripts need reading, batch size, what to exclude, what to deliver | Goal, word counts, flags, how many photos came |
 | Clerk | Transcribes photographed handwritten pages word for word, reads the name and page number on each, reports its confidence and the lines on the page | One photo at a time |
 | Marker | Marks each essay per criterion, quoting evidence from the essay | Anonymous essays, rubric |
-| Reviewer | Marks every essay again without seeing the Marker's marks, then rules on disputes. Tries every exercise without seeing its label or answer | Anonymous essays, rubric; exercise tasks only |
+| Reviewer | Marks every essay again without seeing the Marker's marks, then rules on disputes. Tries every exercise without seeing its label or answer. Checks the Windows proof answers | Anonymous essays, rubric; exercise tasks only; the proof text, not the learner's clicks in the simulator |
 | Messenger | Writes each learner's feedback and the teacher's class report, delivers everything | Final marks, first names |
 | Coach | Works out why each flagged learner is behind and plans a week of catch-up | The flagged learners' marks, essays and first names |
 | Designer | Drafts the next lesson and its exercises for the class's weakest area | Class averages and counts, never a learner |
@@ -163,6 +181,11 @@ Results are written to `output/<run>/`: `outbox/` (one message per learner), `ma
 - `app/tools.py` code checks and delivery
 - `app/llm.py` Gemini and OpenRouter clients (REST, with retries and rate limiting, text and photos), the switch from one to the other, and the mock
 - `app/mock.py` the offline replies, including a small bank of exercises for the sample outcomes and the Clerk's recorded readings
+- `app/risk.py` the risk score, the score report, and catch-up links
+- `app/week2.py` the rescue week: before and after, with no model call
+- `app/windows.py` the Windows tasks and the Reviewer's proof check
+- `data/windows.json` the sample class's S1–S4 results
 - `data/attempts/`, `data/practical_rubric.json` sample PC assembly attempts and the practical's rubric
+- `data/class.csv`, `data/essays/` the twelve Grade 12 CAT learners (the handwritten scripts still belong to Sipho Ndlovu, Ruan Botha and Bongani Sithole)
 - `data/scripts/` five photographed sample pages and `golden.json`, their readings for mock mode
-- `web/` live dashboard (React + Vite): `src/App.jsx`, `src/api.js` (polling hook and uploads), `src/components/` (`ScriptIngest.jsx` and `IngestReview.jsx` for the scripts, `PCAssembly.jsx` the virtual lab, `ModelViewer.jsx` the 3D PC), `src/assembly.js` the lab's rules, `public/` the lab's pictures and the 3D model
+- `web/` live dashboard (React + Vite): `src/App.jsx`, `src/api.js`, `src/components/` (`PCAssembly.jsx` the virtual lab, `WindowsStation.jsx` the simulator and checklist, `ModelViewer.jsx` the 3D PC, `RiskBoard.jsx`, `ScoreReport.jsx`), `src/assembly.js` the lab's rules

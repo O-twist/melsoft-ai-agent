@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { fileUrl, startRun, useRun } from "./api.js";
+import { fileUrl, resetWeek2, runWeek2, startRun, useRun } from "./api.js";
 import { useTheme } from "./theme.js";
 import Icon from "./components/Icon.jsx";
 import { Disc } from "./components/Badge.jsx";
@@ -20,6 +20,8 @@ import ConsistencyCard from "./components/ConsistencyCard.jsx";
 import ScriptIngest from "./components/ScriptIngest.jsx";
 import IngestReview from "./components/IngestReview.jsx";
 import PCAssembly from "./components/PCAssembly.jsx";
+import WindowsStation from "./components/WindowsStation.jsx";
+import ModelViewer from "./components/ModelViewer.jsx";
 import CorrectionsPanel from "./components/CorrectionsPanel.jsx";
 import ClassUpload from "./components/ClassUpload.jsx";
 import DetailDrawer from "./components/DetailDrawer.jsx";
@@ -42,7 +44,7 @@ function Splash({ offline, problem }) {
         </>
       ) : offline ? (
         <>
-          <h1>Cannot reach Marking Colleague</h1>
+          <h1>Cannot reach LabLess</h1>
           <p>Start the server with <code>start.cmd</code> or <code>python run.py</code>. This page reconnects by itself.</p>
         </>
       ) : (
@@ -66,6 +68,7 @@ export default function App() {
   const [view, setView] = useState("board"); // landing is the at-risk list; the marking desk stays mounted
   const [focusId, setFocusId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [station, setStation] = useState(null);
   const closeDrawer = useCallback(() => setOpenId(null), []);
 
   // Joining a run that is already under way (a reload, or a second window): show the goal it was given.
@@ -79,6 +82,12 @@ export default function App() {
     }
     // Deliberately keyed on the run alone: this must not fire on every poll and undo the user's typing.
   }, [runId]);
+
+  useEffect(() => {
+    if (!station) return;
+    const id = station.kind === "windows" ? "windows-station" : station.kind === "model" ? "part-viewer" : "virtual-lab";
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [station]);
 
   if (!state) return <Splash offline={offline} problem={problem} />;
 
@@ -110,6 +119,35 @@ export default function App() {
   function openReport(id) {
     setFocusId(id);
     setView("report");
+  }
+
+  function openCatchUp(learner, link) {
+    setStation({ ...link, learnerId: learner.id, nonce: Date.now() });
+    if (link.kind !== "windows") setAssessment("practical");
+    setView("desk");
+  }
+
+  async function week(learnerId) {
+    setError("");
+    try {
+      await runWeek2(learnerId || null);
+      refresh();
+      setNotice(learnerId ? `Week 2 scored for ${learnerId}.` : "Week 2 scored for the class.");
+    } catch (e) {
+      setNotice("");
+      setError(e.message);
+    }
+  }
+
+  async function clearWeek() {
+    setError("");
+    try {
+      await resetWeek2();
+      refresh();
+      setNotice("");
+    } catch (e) {
+      setError(e.message);
+    }
   }
 
   async function rescue(row) {
@@ -201,12 +239,12 @@ export default function App() {
 
       {view === "board" && (
         <div className="page no-print">
-          <RiskBoard state={state} onReport={openReport} onRescue={rescue} notice={notice} error={error} />
+          <RiskBoard state={state} onReport={openReport} onRescue={rescue} onWeek2={week} onWeekReset={clearWeek} notice={notice} error={error} />
         </div>
       )}
       {view === "report" && (
         <div className="page">
-          <ScoreReport risk={state.risk} focusId={focusId} />
+          <ScoreReport risk={state.risk} week2={state.week2} focusId={focusId} onCatchUp={openCatchUp} />
         </div>
       )}
 
@@ -228,8 +266,26 @@ export default function App() {
           }}
         />
 
+        {station?.kind === "model" && (
+          <section className="card" id="part-viewer">
+            <header className="card-head">
+              <div>
+                <h2>Look at the part</h2>
+                <p>The catch-up opens the 3D PC on the part this gap is about.</p>
+              </div>
+            </header>
+            <ModelViewer part={station.target} />
+          </section>
+        )}
+
         {/* The virtual lab, for the practical: attempts done here are marked in the next practical run. */}
-        {assessment === "practical" && <PCAssembly subs={state.subs} />}
+        {assessment === "practical" && (
+          <div id="virtual-lab">
+            <PCAssembly subs={state.subs} focus={station?.kind === "lab" ? station : null} />
+          </div>
+        )}
+
+        <WindowsStation subs={state.subs} focus={station?.kind === "windows" ? station : null} onSaved={refresh} />
 
         {/* Photographed scripts are essays, so the card is offered only when essays are being marked. */}
         {assessment === "essay" && <ClassUpload mine={mine} onMine={setMine} running={running} />}

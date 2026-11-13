@@ -1,8 +1,8 @@
 {
   "kind": "practical",
   "work": "practical attempt",
-  "subject": "Grade 10 Computer Applications Technology",
-  "title": "PC assembly practical (Grade 10 CAT, 40 marks)",
+  "subject": "Grade 12 Computer Applications Technology",
+  "title": "PC assembly practical (Grade 12 CAT, 40 marks)",
   "task": "Assemble a desktop PC in the virtual lab: install the motherboard, CPU, RAM, GPU, SSD and power supply, in the order a technician would, without damaging anything.",
   "parts": ["motherboard", "CPU", "RAM", "GPU", "SSD", "PSU"],
   "min_words": 20,

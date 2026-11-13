@@ -22,14 +22,14 @@ function SkillBar({ area }) {
   );
 }
 
-function Sheet({ learner, passLine }) {
+function Sheet({ learner, passLine, onCatchUp }) {
   const passed = learner.result === "Pass";
   return (
     <article className="score-sheet">
       <header className="score-banner">
         <div>
-          <p className="score-brand">Colleague Zero</p>
-          <p className="score-programme">Matric Rescue · score report</p>
+          <p className="score-brand">LabLess</p>
+          <p className="score-programme">Grade 12 CAT · score report</p>
         </div>
         <p className={`score-stamp ${passed ? "is-pass" : "is-notyet"}`}>{passed ? "Pass" : "Not yet"}</p>
       </header>
@@ -37,7 +37,7 @@ function Sheet({ learner, passLine }) {
       <div className="score-who">
         <div>
           <h2>{learner.learner}</h2>
-          <p>Grade 10 · {learner.id}</p>
+          <p>Grade 12 CAT · {learner.id}</p>
         </div>
         <div className="score-overall">
           <p className="score-out-of"><span className="num">{learner.overall}</span><small>/ 100</small></p>
@@ -48,6 +48,9 @@ function Sheet({ learner, passLine }) {
       <p className="score-riskline">
         <b>Rescue risk {learner.risk}</b> · {learner.band}. {learner.reason}
       </p>
+      {learner.theory_pass_note && (
+        <p className="score-passnote">{learner.theory_pass_note}</p>
+      )}
 
       <section>
         <h3>Skill areas</h3>
@@ -62,6 +65,17 @@ function Sheet({ learner, passLine }) {
                       <b>{outcome.id}</b>
                       <span className="num">{outcome.percent}%</span>
                       <em>{outcome.label}</em>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {area.id === "windows" && learner.windows?.length > 0 && (
+                <ul className="outcome-row">
+                  {learner.windows.map((outcome) => (
+                    <li key={outcome.id}>
+                      <b>{outcome.id}</b>
+                      <span className="num">{outcome.percent}%</span>
+                      <em>{outcome.name}</em>
                     </li>
                   ))}
                 </ul>
@@ -89,6 +103,13 @@ function Sheet({ learner, passLine }) {
               {gap.detail && <p>{gap.detail}</p>}
               {gap.quote && <blockquote>“{gap.quote}”</blockquote>}
               <p className="score-task"><span className="otag">{gap.outcome}</span> {gap.task}</p>
+              {gap.link && onCatchUp && (
+                <p className="no-print">
+                  <button type="button" className="btn small" onClick={() => onCatchUp(learner, gap.link)}>
+                    {gap.link.label}
+                  </button>
+                </p>
+              )}
             </div>
           )) : <p className="score-empty">Nothing is below the pass line. Keep this standard in the exam.</p>}
         </section>
@@ -106,7 +127,7 @@ function Sheet({ learner, passLine }) {
       <footer className="score-moderation">
         <h3>Moderation note</h3>
         <p>{learner.moderation}</p>
-        <p className="score-sign">Colleague Zero · Matric Rescue. Prepared for the teacher, for use in school.</p>
+        <p className="score-sign">LabLess. Prepared for the teacher, for use in school.</p>
       </footer>
     </article>
   );
@@ -118,15 +139,15 @@ function ClassSummary({ risk }) {
     <article className="score-sheet">
       <header className="score-banner">
         <div>
-          <p className="score-brand">Colleague Zero</p>
-          <p className="score-programme">Matric Rescue · class score report</p>
+          <p className="score-brand">LabLess</p>
+          <p className="score-programme">Grade 12 CAT · class score report</p>
         </div>
         <p className="score-stamp is-class">Teacher</p>
       </header>
       <div className="score-who">
         <div>
           <h2>Class summary</h2>
-          <p>Grade 10 · sorted by rescue risk</p>
+          <p>Grade 12 CAT · sorted by rescue risk</p>
         </div>
         <div className="score-overall">
           <p className="score-out-of"><span className="num">{risk.average}</span><small> avg</small></p>
@@ -163,7 +184,7 @@ function ClassSummary({ risk }) {
         <p className="score-sign">
           {risk.passed} at the pass line, {risk.not_yet} not yet.
           Theory is weighted {Math.round((risk.config?.weights?.theory || 0) * 100)}% and practical work {Math.round((risk.config?.weights?.practical || 0) * 100)}%.
-          Colleague Zero · Matric Rescue.
+          LabLess.
         </p>
       </footer>
     </article>
@@ -171,8 +192,10 @@ function ClassSummary({ risk }) {
 }
 
 /** The Messenger's score report: one learner, or the class, and printable from the browser. */
-export default function ScoreReport({ risk, focusId }) {
-  const learners = risk?.learners || [];
+export default function ScoreReport({ risk, week2, focusId, onCatchUp }) {
+  const [which, setWhich] = useState("before");
+  const shown = which === "after" && week2?.after?.ok ? week2.after : risk;
+  const learners = shown?.learners || [];
   const [mode, setMode] = useState("learner");
   const [id, setId] = useState(focusId || learners[0]?.id || "");
 
@@ -185,7 +208,7 @@ export default function ScoreReport({ risk, focusId }) {
 
   const learner = learners.find((row) => row.id === id) || learners[0];
 
-  if (!risk?.ok || !learners.length) {
+  if (!shown?.ok || !learners.length) {
     return <p className="empty-note">The score report appears once the Planner has scored the class.</p>;
   }
 
@@ -200,6 +223,16 @@ export default function ScoreReport({ risk, focusId }) {
             Class summary
           </button>
         </div>
+        {week2?.after?.ok && (
+          <div className="seg" role="group" aria-label="Before or after the rescue week">
+            <button type="button" className={which === "before" ? "on" : ""} aria-pressed={which === "before"} onClick={() => setWhich("before")}>
+              Week 1
+            </button>
+            <button type="button" className={which === "after" ? "on" : ""} aria-pressed={which === "after"} onClick={() => setWhich("after")}>
+              Week 2
+            </button>
+          </div>
+        )}
         {mode === "learner" && (
           <label className="score-pick">
             <span className="sr-only">Learner</span>
@@ -216,11 +249,11 @@ export default function ScoreReport({ risk, focusId }) {
       </div>
       <p className="score-hint no-print">In the print window, choose “Save as PDF” to keep a copy. The marking desk is left off the page.</p>
 
-      {mode === "class" ? <ClassSummary risk={risk} /> : learner && <Sheet learner={learner} passLine={risk.config?.pass_line} />}
+      {mode === "class" ? <ClassSummary risk={shown} /> : learner && <Sheet learner={learner} passLine={shown.config?.pass_line} onCatchUp={onCatchUp} />}
 
       {mode === "class" && (
         <div className="print-learners">
-          {learners.map((row) => <Sheet key={row.id} learner={row} passLine={risk.config?.pass_line} />)}
+          {learners.map((row) => <Sheet key={row.id} learner={row} passLine={shown.config?.pass_line} />)}
         </div>
       )}
     </section>

@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import Icon from "./Icon.jsx";
 import { Disc } from "./Badge.jsx";
 
-export const DEFAULT_GOAL = "Mark the Grade 10 essays against the rubric and send every learner personalised feedback.";
+export const DEFAULT_GOAL = "Mark the Grade 12 CAT theory papers against the rubric and send every learner personalised feedback.";
 export const PRACTICAL_GOAL = "Mark the PC assembly practical against the rubric and send every learner personalised feedback.";
 
 /* The same kinds of goal for the PC assembly practical, marked from the virtual lab's attempt logs. */
@@ -23,7 +23,7 @@ const EXAMPLES = [
   { label: "Mark and send feedback", goal: DEFAULT_GOAL },
   {
     label: "Marks only, no messages",
-    goal: "Mark the Grade 10 essays against the rubric. Do not send feedback to learners: I only want the mark sheet and the class report.",
+    goal: "Mark the Grade 12 CAT theory papers against the rubric. Do not send feedback to learners: I only want the mark sheet and the class report.",
   },
   {
     label: "Who is falling behind?",

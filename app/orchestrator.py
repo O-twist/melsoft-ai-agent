@@ -262,7 +262,7 @@ class Run:
         for learner in board["learners"]:
             if learner["band"] != "High":
                 continue
-            self.emit("PL", "PLAN", f"{learner['learner']}: risk {learner['risk']} ({learner['band']}). {learner['reason']}.", learner["id"])
+            self.emit("PL", "PLAN", f"{learner['learner']}: risk {learner['risk']} ({learner['band']}). {learner.get('theory_pass_note') or learner['reason']}.", learner["id"])
 
     def _set_aside(self):
         """Apply the Planner's exclusions, inside limits that are enforced in code."""

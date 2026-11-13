@@ -1,4 +1,4 @@
-"""Planner risk scores for Colleague Zero: Matric Rescue.
+"""Planner risk scores for LabLess.
 
 One place holds the weights and thresholds (``RISK``). For each learner the score
 combines theory marks from the Marker and the Reviewer with practical outcomes.
@@ -13,7 +13,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from . import mock, tools
+from . import mock, tools, windows as windows_station
 
 # Weights, pass line, bands and how far a weak outcome pushes the score.
 # Change a rescue decision here, not in the dashboard.
@@ -55,6 +55,20 @@ CATCH_UP = {
     "W6": "Read the essay aloud and correct capital letters, spelling and subject-verb agreement before the next lesson.",
     "missing_essay": "Write the essay to at least 200 words on the set topic and hand it in so it can be marked.",
     "missing_practical": "Complete the PC assembly practical in the virtual lab so there is an attempt to mark.",
+    "S1": "In the Windows simulator, create a folder on the Desktop named CAT Rescue, then answer the proof question.",
+    "S2": "In Documents, open the 2020 folder and rename the folder whose name mentions a Windows release, then answer the proof question.",
+    "S3": "In Settings, open Personalisation and choose a theme picture, then answer the proof question.",
+    "S4": "In Settings, open System and read the device name and model, then answer the proof question.",
+}
+
+# Where a catch-up task opens. Theory writing stays on the page; hardware and Windows open a station.
+_LINK = {
+    "H1": ("model", "motherboard", "Open the 3D model and name the parts"),
+    "H2": ("lab", "motherboard", "Open the virtual lab at the motherboard step"),
+    "H3": ("model", "ram", "Open the 3D model focused on the RAM"),
+    "H4": ("lab", "gpu", "Open the virtual lab at the graphics card step"),
+    "H5": ("model", "psu", "Open the 3D model focused on the power supply"),
+    "H6": ("lab", "motherboard", "Open the virtual lab and finish the build"),
 }
 
 _THEORY_OUTCOME = {"content": "W2", "language": "W6", "structure": "W4"}
@@ -98,6 +112,22 @@ def band_for(score, config=None):
 
 def part_name(part):
     return _PART.get(str(part).lower(), str(part))
+
+
+def gap_link(outcome_id, detail=""):
+    """A station the score report can open for this gap, or None for a writing task."""
+    text = (detail or "").lower()
+    if outcome_id == "H3" and "cpu" in text and "ram" not in text:
+        return {"kind": "model", "target": "cpu", "label": "Open the 3D model focused on the CPU"}
+    if outcome_id == "H4" and "ssd" in text and "gpu" not in text and "graphics" not in text:
+        return {"kind": "model", "target": "ssd", "label": "Open the 3D model focused on the SSD"}
+    if outcome_id in _LINK:
+        kind, target, label = _LINK[outcome_id]
+        return {"kind": kind, "target": target, "label": label}
+    task = windows_station.task_by_id(outcome_id)
+    if task:
+        return {"kind": "windows", "target": task["id"], "label": f"Open the Windows task: {task['name'].lower()}"}
+    return None
 
 
 def failure_phrases(wrongs):
@@ -250,13 +280,20 @@ def _windows_outcomes(raw, station):
     for outcome_id in station["outcomes"]:
         if outcome_id not in raw:
             continue
-        try:
-            percent = float(raw[outcome_id])
-        except (TypeError, ValueError):
+        stored = raw[outcome_id]
+        percent = windows_station.outcome_percent(stored)
+        if percent is None:
             continue
+        task = windows_station.task_by_id(outcome_id)
+        name = task["name"] if task else outcome_id
+        if isinstance(stored, dict) and stored.get("note"):
+            detail = str(stored["note"])
+        elif isinstance(stored, dict) and stored.get("detail"):
+            detail = str(stored["detail"])
+        else:
+            detail = "Recorded on the Windows station."
         rows.append({
-            "id": outcome_id, "name": outcome_id, "percent": _clamp(percent),
-            "detail": "Recorded on the Windows station.",
+            "id": outcome_id, "name": name, "percent": _clamp(percent), "detail": detail,
         })
     return rows
 
@@ -312,6 +349,32 @@ def _area(row, group):
         "score": row.get("score"), "max": row.get("max"),
         "detail": row.get("detail") or "",
     }
+
+
+def _theory_pass_note(theory, practical, windows_rows, pass_line, band):
+    """One line when theory is a pass and the learner is still High risk because of the practical."""
+    if band != "High" or not theory.get("marked") or theory.get("percent", 0) < pass_line:
+        return ""
+    gaps = []
+    if practical.get("in_class"):
+        if not practical.get("marked"):
+            gaps.append("no PC assembly attempt on record")
+        else:
+            if not practical.get("completed"):
+                gaps.append("the PC build was not finished")
+            gaps.extend(failure_phrases(practical.get("wrongs") or [])[:3])
+            if not gaps:
+                weak = [
+                    f"{row['name']} at {row['percent']}%"
+                    for row in practical.get("outcomes") or [] if row["percent"] < pass_line
+                ]
+                gaps.extend(weak[:2])
+    for row in windows_rows:
+        if row["percent"] < pass_line:
+            gaps.append(f"Windows {row['id']} at {row['percent']}%")
+    if not gaps:
+        return ""
+    return "Passed theory, but the practical shows gaps: " + "; ".join(gaps) + "."
 
 
 def _learner_report(sub, theory, practical, windows_rows, config):
@@ -381,13 +444,23 @@ def _learner_report(sub, theory, practical, windows_rows, config):
     if practical["in_class"]:
         notes.append(_moderation("Practical", practical.get("marker"), practical.get("reviewer"), practical.get("final"), practical["rubric"]))
     moderation = "Second-marked. " + " ".join(notes) if notes else "Nothing has been second-marked yet."
+    if any(row.get("detail", "").startswith("The Reviewer") or row.get("detail", "").startswith("Week 2:") for row in windows_rows):
+        checked = [row["id"] for row in windows_rows if "Reviewer" in row.get("detail", "") or row.get("detail", "").startswith("Week 2:")]
+        if checked:
+            moderation += f" Windows proofs checked: {', '.join(checked)}."
+    theory_pass_note = _theory_pass_note(theory, practical, windows_rows, pass_line, band)
 
     return {
         "id": sub["id"], "learner": sub["learner"], "first_name": sub["learner"].split()[0],
         "risk": risk, "band": band, "reason": reason, "reasons": reasons,
+        "theory_pass_note": theory_pass_note,
         "overall": overall, "result": "Pass" if overall >= pass_line else "Not yet",
         "pass_line": pass_line, "areas": areas, "strengths": strengths, "gaps": gaps,
         "moderation": moderation,
+        "windows": [
+            {"id": row["id"], "name": row["name"], "percent": row["percent"], "label": row.get("label", ""), "detail": row["detail"]}
+            for row in windows_rows
+        ],
         "theory": {k: v for k, v in theory.items() if k not in ("rubric", "marker", "reviewer", "final", "text")},
         "practical": {k: v for k, v in practical.items() if k not in ("rubric", "marker", "reviewer", "final", "text", "attempt", "wrongs")},
     }
@@ -428,11 +501,13 @@ def _evidence(sub, theory, practical, windows_rows, config):
                 "name": row["name"], "percent": row["percent"], "outcome": outcome,
                 "detail": row["reason"] or f"{row['percent']}% against a {config['pass_line']}% pass line.",
                 "quote": quote, "task": CATCH_UP.get(outcome, CATCH_UP["W2"]),
+                "link": gap_link(outcome, row["reason"]),
             })
     elif theory["in_class"]:
         gaps.append({
             "name": "Theory essay", "percent": 0, "outcome": "W1",
             "detail": theory["why"], "quote": "", "task": CATCH_UP["missing_essay"],
+            "link": None,
         })
 
     if practical["in_class"] and practical["marked"]:
@@ -459,20 +534,34 @@ def _evidence(sub, theory, practical, windows_rows, config):
             gaps.append({
                 "name": f"{row['id']} {row['name']}", "percent": row["percent"], "outcome": row["id"],
                 "detail": row["detail"], "quote": quote, "task": CATCH_UP.get(row["id"], CATCH_UP["H6"]),
+                "link": gap_link(row["id"], row["detail"]),
             })
+        linked = {gap["link"]["target"] for gap in gaps if gap.get("link")}
+        phrase_text = " ".join(failure_phrases(practical.get("wrongs") or [])).lower()
+        if "ram" in phrase_text and "ram" not in linked:
+            h3 = next((row for row in practical["outcomes"] if row["id"] == "H3"), None)
+            if h3:
+                quote = _log_quote(log, "H3")
+                gaps.append({
+                    "name": "H3 CPU and RAM", "percent": h3["percent"], "outcome": "H3",
+                    "detail": h3["detail"], "quote": quote, "task": CATCH_UP["H3"],
+                    "link": {"kind": "model", "target": "ram", "label": "Open the 3D model focused on the RAM"},
+                })
     elif practical["in_class"]:
         gaps.append({
             "name": "Hardware / PC assembly", "percent": 0, "outcome": "H6",
             "detail": practical["why"], "quote": "", "task": CATCH_UP["missing_practical"],
+            "link": gap_link("H6", practical["why"]),
         })
 
     for row in windows_rows:
         if row["percent"] >= config["skill"]["meeting"]:
             continue
         gaps.append({
-            "name": f"Windows {row['id']}", "percent": row["percent"], "outcome": row["id"],
+            "name": f"Windows {row['name']}", "percent": row["percent"], "outcome": row["id"],
             "detail": row["detail"], "quote": "",
-            "task": f"Revisit Windows outcome {row['id']} with the teacher before the next sitting.",
+            "task": CATCH_UP.get(row["id"], f"Revisit Windows outcome {row['id']} with the teacher before the next sitting."),
+            "link": gap_link(row["id"], row["detail"]),
         })
     if not strengths and theory["marked"]:
         best = max(theory["criteria"], key=lambda row: row["percent"])
@@ -481,7 +570,7 @@ def _evidence(sub, theory, practical, windows_rows, config):
             "quote": best["evidence"] if _contains(best["evidence"], theory.get("text") or "") else "",
             "detail": "This is the strongest part of the work so far.",
         })
-    return strengths[:3], gaps[:4]
+    return strengths[:3], gaps[:8]
 
 
 def _reasons(sub, theory, practical, windows_rows, pass_line, practical_pct):
@@ -540,24 +629,28 @@ def _reasons(sub, theory, practical, windows_rows, pass_line, practical_pct):
     return " ".join(line.split()), reasons
 
 
-def _theory_block(sub, rubric, overlay_sub, config):
+def _theory_block(sub, rubric, overlay_sub, config, rescue_mark=None):
     min_words = rubric.get("min_words", 50)
     text = sub.get("text") or ""
     words = len(text.split())
-    overlay = _overlay_marks(overlay_sub)
-    if overlay:
-        marker, reviewer, final = overlay
-        source = "settled"
-    elif words < min_words:
-        why = (f"The essay has {words} words and needs at least {min_words}, so it was not marked."
-               if words else "Nothing was handed in for the essay, so it was not marked.")
-        return {"in_class": True, "marked": False, "percent": 0, "score": 0, "max": rubric["total"],
-                "source": "none", "why": why, "criteria": [], "text": text, "rubric": rubric,
-                "marker": None, "reviewer": None, "final": None}
+    if rescue_mark:
+        marker, reviewer, final = rescue_mark, rescue_mark, rescue_mark
+        source = "rescue"
     else:
-        marker, reviewer = _offline_marks(text, rubric, sub["id"], "essay")
-        final = marker
-        source = "offline"
+        overlay = _overlay_marks(overlay_sub)
+        if overlay:
+            marker, reviewer, final = overlay
+            source = "settled"
+        elif words < min_words:
+            why = (f"The essay has {words} words and needs at least {min_words}, so it was not marked."
+                   if words else "Nothing was handed in for the essay, so it was not marked.")
+            return {"in_class": True, "marked": False, "percent": 0, "score": 0, "max": rubric["total"],
+                    "source": "none", "why": why, "criteria": [], "text": text, "rubric": rubric,
+                    "marker": None, "reviewer": None, "final": None}
+        else:
+            marker, reviewer = _offline_marks(text, rubric, sub["id"], "essay")
+            final = marker
+            source = "offline"
     criteria = _criteria(final, rubric)
     return {
         "in_class": True, "marked": True, "percent": _pct(final["total"], rubric["total"]),
@@ -602,14 +695,22 @@ def _practical_block(sub, rubric, attempt, overlay_sub):
     }
 
 
-def _attempts(data_dir, live_dir, parts):
+def _attempts(data_dir, live_dir, parts, overlay=None):
     found = tools._read_attempts(Path(data_dir) / "attempts", parts) if parts else {}
     live = tools._read_attempts(live_dir, parts) if parts else {}
     found.update(live)  # a build saved in the lab replaces the sample file
+    for learner_id, attempt in (overlay or {}).items():
+        if attempt is None:
+            found.pop(learner_id, None)
+            continue
+        cleaned = tools.clean_attempt(attempt, parts)
+        cleaned["learner_id"] = cleaned["learner_id"] or learner_id
+        found[learner_id] = cleaned
     return found
 
 
-def assess(data_dir, overlay=None, assessment=None, live_dir=None, windows=None, config=None):
+def assess(data_dir, overlay=None, assessment=None, live_dir=None, windows=None, config=None,
+           attempt_overlay=None, theory_overlay=None):
     """Risk and score reports for the class in ``data_dir``.
 
     ``overlay`` is the run's submissions when a marking run is underway. Essay runs
@@ -627,20 +728,21 @@ def assess(data_dir, overlay=None, assessment=None, live_dir=None, windows=None,
     practical_rubric = tools.load_rubric(data_dir, "practical") if practical_path.exists() else None
     subs = tools.load_submissions(data_dir)
     parts = (practical_rubric or {}).get("parts") or []
-    attempts = _attempts(data_dir, live_dir, parts)
+    attempts = _attempts(data_dir, live_dir, parts, attempt_overlay)
     by_overlay = {s["id"]: s for s in overlay or []}
     windows_by = _load_windows(data_dir, windows)
     station = config["stations"]["windows"]
+    rescue_theory = theory_overlay or {}
 
     learners = []
     for sub in subs:
         overlay_sub = by_overlay.get(sub["id"])
-        theory_overlay = overlay_sub if assessment == "essay" else None
+        theory_run = overlay_sub if assessment == "essay" else None
         practical_overlay = overlay_sub if assessment == "practical" else None
         # An essay run may have replaced the typed file with a transcript. A practical run's text is the attempt log.
         if assessment == "essay" and isinstance(overlay_sub, dict) and overlay_sub.get("text"):
             sub = {**sub, "text": overlay_sub["text"]}
-        theory = _theory_block(sub, essay_rubric, theory_overlay, config)
+        theory = _theory_block(sub, essay_rubric, theory_run, config, rescue_theory.get(sub["id"]))
         attempt = attempts.get(sub["id"])
         practical = _practical_block(sub, practical_rubric, attempt, practical_overlay)
         windows_rows = _windows_outcomes(windows_by.get(sub["id"]), station)
@@ -666,7 +768,7 @@ def assess(data_dir, overlay=None, assessment=None, live_dir=None, windows=None,
     )
     return {
         "ok": True,
-        "title": "Colleague Zero: Matric Rescue",
+        "title": "LabLess",
         "config": {
             "pass_line": config["pass_line"],
             "weights": config["weights"],

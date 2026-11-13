@@ -7,7 +7,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from app import classes, ingest, risk, story, tools
+from app import classes, ingest, risk, story, tools, week2
+from app import windows as windows_station
 from app.llm import make_llm
 from app.orchestrator import AGENTS, Run
 
@@ -21,7 +22,7 @@ NOT_BUILT = (
 )
 mimetypes.add_type("model/gltf-binary", ".glb")  # the 3D model in the lesson view
 DOWNLOADS = {".csv": "text/csv", ".md": "text/markdown", ".pdf": "application/pdf", ".txt": "text/plain"}
-current = {"run": None}
+current = {"run": None, "week2": None}
 
 
 def practical_lab():
@@ -32,6 +33,27 @@ def practical_lab():
 def live_attempts():
     """Where attempts done in the dashboard's virtual lab are kept, apart from the sample files in data/attempts."""
     return OUTPUT / "attempts"
+
+
+def live_windows():
+    """Proof answers from the Windows checklist, apart from the sample rows in data/windows.json."""
+    return OUTPUT / "windows"
+
+
+def merged_windows(data_dir):
+    """Sample station results, with a live checklist submission taking the place of that learner."""
+    found = risk._load_windows(data_dir, None)
+    folder = live_windows()
+    if not folder.is_dir():
+        return found
+    for path in sorted(folder.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and isinstance(data.get("outcomes"), dict):
+            found[str(data.get("learner_id") or path.stem)] = data["outcomes"]
+    return found
 
 
 def class_root():
@@ -94,6 +116,7 @@ class Handler(BaseHTTPRequestHandler):
                 state = run.snapshot(int(since) if since.isdigit() else 0) if run else idle_state()
                 state["features"] = {"practical": practical_lab()}
                 state["risk"] = self._risk_board(run, state.get("subs") if run else None)
+                state["week2"] = current.get("week2")
                 return self._send(200, state)
             if url.path == "/api/risk":
                 run = current["run"]
@@ -110,6 +133,8 @@ class Handler(BaseHTTPRequestHandler):
                 folder = live_attempts()
                 rows = [{"learner_id": p.stem, "saved": round(p.stat().st_mtime)} for p in sorted(folder.glob("*.json"))] if folder.is_dir() else []
                 return self._send(200, {"attempts": rows})
+            if url.path == "/api/windows":
+                return self._send(200, {"tasks": windows_station.public_tasks()})
             if url.path == "/api/page":
                 q = parse_qs(url.query)
                 try:
@@ -129,9 +154,11 @@ class Handler(BaseHTTPRequestHandler):
         """Planner risk scores. A failure here must not take the rest of the dashboard down."""
         try:
             if run:
-                return risk.assess(run.data_dir, overlay=overlay, assessment=run.assessment,
-                                   live_dir=run.live_attempts or live_attempts())
-            return risk.assess(DATA, live_dir=live_attempts())
+                data_dir = run.data_dir
+                live = run.live_attempts or live_attempts()
+                return risk.assess(data_dir, overlay=overlay, assessment=run.assessment,
+                                   live_dir=live, windows=merged_windows(data_dir))
+            return risk.assess(DATA, live_dir=live_attempts(), windows=merged_windows(DATA))
         except Exception as exc:
             return {"ok": False, "learners": [], "counts": {}, "error": f"{type(exc).__name__}: {exc}"}
 
@@ -220,6 +247,39 @@ class Handler(BaseHTTPRequestHandler):
         (folder / f"{attempt['learner_id']}.json").write_text(json.dumps(attempt, indent=1) + "\n", encoding="utf-8")
         return self._send(200, {"ok": True, "saved": round(time.time()), "log": tools.render_attempt(attempt, rubric)})
 
+    def _class_dir(self):
+        run = current["run"]
+        return run.data_dir if run else DATA
+
+    def _week2(self, body):
+        """Simulate the rescue week and score the class again. Reset drops the comparison."""
+        if body.get("reset"):
+            current["week2"] = None
+            return self._send(200, {"ok": True})
+        data_dir = self._class_dir()
+        run = current["run"]
+        live = run.live_attempts if run and run.live_attempts else live_attempts()
+        learner = str(body.get("learner") or "").strip() or None
+        result = week2.project(data_dir, live_dir=live, windows=merged_windows(data_dir), learner_id=learner)
+        if not result.get("ok"):
+            return self._send(400, {"error": result.get("error") or "Week 2 could not be scored."})
+        current["week2"] = result
+        return self._send(200, result)
+
+    def _save_windows(self, body):
+        """The Reviewer checks the proof answers and keeps them for the risk score."""
+        data_dir = self._class_dir()
+        learner = str(body.get("learner_id") or "").strip()
+        known = {sub["id"] for sub in tools.load_submissions(data_dir)}
+        if learner not in known:
+            return self._send(400, {"error": "Choose a learner from the class list."})
+        answers = body.get("answers") if isinstance(body.get("answers"), dict) else {}
+        result = windows_station.review(answers, learner)
+        folder = live_windows()
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{learner}.json").write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
+        return self._send(200, result)
+
     def do_POST(self):
         try:
             url = urlparse(self.path)
@@ -230,6 +290,10 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body()
             if self.path == "/api/attempt":
                 return self._save_attempt(body)
+            if self.path == "/api/week2":
+                return self._week2(body)
+            if self.path == "/api/windows":
+                return self._save_windows(body)
             if self.path == "/api/run":
                 run = current["run"]
                 if run and run.status == "running":
@@ -283,10 +347,10 @@ if __name__ == "__main__":
     try:
         server = Server((host, port), Handler)
     except OSError as e:
-        raise SystemExit(f"Cannot start on port {port}: {e}\nIs Marking Colleague already running in another window? "
+        raise SystemExit(f"Cannot start on port {port}: {e}\nIs LabLess already running in another window? "
                          "Close it, or set PORT=8001 in .env.")
     backup = getattr(llm, "backup", None)
-    print(f"Marking Colleague on http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}  (LLM: {llm.name}, {llm.model}"
+    print(f"LabLess on http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}  (LLM: {llm.name}, {llm.model}"
           + (f"; {backup.name}, {backup.model} if Gemini is busy)" if backup else ")"))
     if llm.name == "mock":
         print("No GEMINI_API_KEY or OPENROUTER_API_KEY found: running in offline mock mode. Put a key in .env for real marking.")
