@@ -29,8 +29,8 @@ export default function RiskBoard({ state, onReport, onRescue, onWeek2, onWeekRe
         <article className="hero-navy">
           <p>Learners at risk</p>
           <strong className="num">{counts.High ?? 0}</strong>
+          <LoopStatus state={state} compact />
         </article>
-        <LoopStatus state={state} />
         <article className="ice-card">
           <div><b className="num">{risk?.average ?? "–"}%</b><span>Class average</span></div>
           <div><b className="num">{risk?.passed ?? 0}/{learners.length || 0}</b><span>At the pass line</span></div>
