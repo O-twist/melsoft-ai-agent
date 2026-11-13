@@ -8,7 +8,7 @@ import traceback
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import agents, ingest, story, tools
+from . import agents, ingest, risk, story, tools
 from .llm import LLMError
 
 AGENTS = {"PL": "Planner", "MK": "Marker", "RV": "Reviewer", "MS": "Messenger", "CO": "Coach", "DS": "Designer"}
@@ -173,6 +173,7 @@ class Run:
         self.emit("PL", "PLAN", self.plan["understanding"])
         for i, step in enumerate(self.plan["steps"], 1):
             self.emit("PL", "PLAN", f"Step {i}: {step}")
+        self._announce_risk()
         self._set_aside()
 
         todo = [s for s in self.subs if s["status"] == "received"]
@@ -243,6 +244,25 @@ class Run:
             "lesson_minutes": minutes,
             "steps": [str(s) for s in steps][:9],
         }
+
+    def _announce_risk(self):
+        """The Planner states each high-risk learner and the reason, from the same rules the landing screen uses."""
+        try:
+            board = risk.assess(self.data_dir, overlay=self.subs, assessment=self.assessment, live_dir=self.live_attempts)
+        except Exception:
+            traceback.print_exc()
+            self.emit("PL", "PLAN", "Risk scores could not be worked out on this run.")
+            return
+        counts = board["counts"]
+        self.emit("PL", "PLAN", (
+            f"Risk scores are in for {len(board['learners'])} learners: "
+            f"{counts.get('High', 0)} high, {counts.get('Medium', 0)} medium, {counts.get('Low', 0)} low. "
+            f"Pass line {board['config']['pass_line']}%."
+        ))
+        for learner in board["learners"]:
+            if learner["band"] != "High":
+                continue
+            self.emit("PL", "PLAN", f"{learner['learner']}: risk {learner['risk']} ({learner['band']}). {learner['reason']}.", learner["id"])
 
     def _set_aside(self):
         """Apply the Planner's exclusions, inside limits that are enforced in code."""
