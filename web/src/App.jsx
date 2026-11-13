@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { fileUrl, resetWeek2, runWeek2, startRun, useRun } from "./api.js";
+import { fileUrl, heldWeek, holdWeek, resetWeek2, runWeek2, startRun, useRun } from "./api.js";
 import { useTheme } from "./theme.js";
 import Icon from "./components/Icon.jsx";
 import { Disc } from "./components/Badge.jsx";
@@ -68,6 +68,7 @@ export default function App() {
   const [view, setView] = useState("board"); // landing is the at-risk list; the marking desk stays mounted
   const [focusId, setFocusId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [weekHold, setWeekHold] = useState(heldWeek);
   const [station, setStation] = useState(null);
   const [partId, setPartId] = useState("");
   const closeDrawer = useCallback(() => setOpenId(null), []);
@@ -91,6 +92,8 @@ export default function App() {
   }, [station]);
 
   if (!state) return <Splash offline={offline} problem={problem} />;
+
+  const week2 = state.week2?.ok ? state.week2 : weekHold;
 
   const running = state.status === "running";
   const selected = state.subs.find((s) => s.id === openId);
@@ -132,7 +135,11 @@ export default function App() {
   async function week(learnerId) {
     setError("");
     try {
-      await runWeek2(learnerId || null);
+      const result = await runWeek2(learnerId || null);
+      if (result?.ok) {
+        holdWeek(result);
+        setWeekHold(result);
+      }
       refresh();
       setNotice(learnerId ? `Week 2 scored for ${learnerId}.` : "Week 2 scored for the class.");
     } catch (e) {
@@ -145,6 +152,8 @@ export default function App() {
     setError("");
     try {
       await resetWeek2();
+      holdWeek(null);
+      setWeekHold(null);
       refresh();
       setNotice("");
     } catch (e) {
@@ -248,12 +257,12 @@ export default function App() {
 
       {view === "board" && (
         <div className="page no-print">
-          <RiskBoard state={state} onReport={openReport} onRescue={rescue} onWeek2={week} onWeekReset={clearWeek} onDesk={openDesk} notice={notice} error={error} />
+          <RiskBoard state={{ ...state, week2 }} onReport={openReport} onRescue={rescue} onWeek2={week} onWeekReset={clearWeek} onDesk={openDesk} notice={notice} error={error} />
         </div>
       )}
       {view === "report" && (
         <div className="page">
-          <ScoreReport risk={state.risk} week2={state.week2} focusId={focusId} onCatchUp={openCatchUp} />
+          <ScoreReport risk={state.risk} week2={week2} focusId={focusId} onCatchUp={openCatchUp} />
         </div>
       )}
 

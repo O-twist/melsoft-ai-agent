@@ -66,6 +66,29 @@ export function uploadPages(files, batch = null) {
 export const saveAttempt = (record) => post("/api/attempt", record);
 export const runWeek2 = (learnerId) => post("/api/week2", learnerId ? { learner: learnerId } : {});
 export const resetWeek2 = () => post("/api/week2", { reset: true });
+
+const WEEK_KEY = "lablest.week2";
+
+/** Week 2 from the last response, so a serverless instance without memory can still show it. */
+export function heldWeek() {
+  try {
+    const raw = sessionStorage.getItem(WEEK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && parsed.ok ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function holdWeek(result) {
+  try {
+    if (result && result.ok) sessionStorage.setItem(WEEK_KEY, JSON.stringify(result));
+    else sessionStorage.removeItem(WEEK_KEY);
+  } catch {
+    // A full browser store must not stop the demo.
+  }
+}
 export const submitWindows = (learnerId, answers) => post("/api/windows", { learner_id: learnerId, answers });
 
 /** The Windows checklist, without the answers the Reviewer is holding. */

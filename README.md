@@ -47,6 +47,36 @@ For real marking, put a key in `.env` (do not commit that file):
 
 With both keys, Gemini does the work. If Gemini is busy, unreachable or refuses the request, OpenRouter takes over for the rest of that run. Week 2 and the Windows proof check never call a model: they stay deterministic.
 
+Copy `.env.example` to `.env` if you want a local file for those keys. Leave the values blank to stay on the offline demo. Do not commit `.env`.
+
+## Deploy on Vercel
+
+The dashboard is the Vite build in `web/dist`. The Python API is one serverless function, `api/index.py`, with `api/requirements.txt` (the standard library only). `vercel.json` sets the install, the build and the output directory, and rewrites `/api/*` onto that function. The page and the API stay on the same origin, so the existing `/api` calls work in production without a second host.
+
+`api/requirements.txt` must not list Flask, FastAPI or Django. Vercel would then treat the repository as that framework and stop serving the static site.
+
+1. In Vercel, import this GitHub repository. If it asks for a framework, choose **Other**. The commands are already in `vercel.json`: `npm ci --prefix web`, then `npm run build --prefix web`, output `web/dist`.
+2. Deploy. With no Supabase variables, the class bundled in `data/` is what the dashboard scores. Week 2 is still 53 to 22 on the risk score and 57 to 78 on the report for Bongani Sithole.
+3. A full marking run is still most reliable with `python run.py`, which keeps one process for the live log. On Vercel, the home screen, the score reports, Week 2, the lab and the Windows checklist all answer a single request. After **Week 2**, the page keeps that result even when the next request lands on a fresh instance.
+
+## Optional Supabase
+
+Supabase is a copy of the class, not a requirement. The server reads these environment variables and never writes them into the repository:
+
+| Variable | Where it is used |
+|---|---|
+| `SUPABASE_URL` | Server only |
+| `SUPABASE_ANON_KEY` | Server only. Row level security lets it read. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only. Optional. Writes need it, because the anon key cannot insert. |
+
+Set them in the Vercel project (Production, and Preview if you want the copy there too). Do not prefix them for the browser, and do not commit the values.
+
+1. Create a Supabase project.
+2. Open the SQL editor and run `supabase/migrations/20261113233000_lablest.sql`. It creates `learners`, `marks`, `practical_outcomes` (H1–H6 and S1–S4), `risk_scores`, `rescue_plans`, `score_reports` and `week_runs`, turns on row level security, and seeds the twelve learners with the same Week 1 and Week 2 numbers. `week_runs` is left empty, so the dashboard still opens on Week 1.
+3. Add the variables in Vercel and redeploy.
+
+If the variables are missing, or Supabase returns an error, LabLess keeps scoring the files in `data/` and the demo carries on. A failed call is not retried for two minutes, so a quiet database cannot stall the page.
+
 ## Credits
 
 - **3D model.** “Personal_computer” by alessiaspedicati (Sketchfab), [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). The file is local, in `web/public/models/`. See `web/public/models/CREDITS.md`. The credit is shown beside the viewer.

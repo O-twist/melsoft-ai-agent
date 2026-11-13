@@ -1,0 +1,2 @@
+# Same as api/requirements.txt. Kept at the root because Vercel looks in both places.
+# Do not add Flask, FastAPI or Django. See api/requirements.txt.
