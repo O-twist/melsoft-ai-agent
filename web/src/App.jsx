@@ -152,6 +152,14 @@ export default function App() {
     }
   }
 
+  function openDesk(kind) {
+    if (kind === "practical" || kind === "essay") {
+      setAssessment(kind);
+      setGoal(kind === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL);
+    }
+    setView("desk");
+  }
+
   async function rescue(row) {
     const practicalOn = Boolean(state.features?.practical) && row.practical?.in_class;
     const theoryPct = row.theory?.marked ? row.theory.percent : 0;
@@ -186,7 +194,27 @@ export default function App() {
   const high = state.risk?.counts?.High;
 
   return (
-    <>
+    <div className="app-frame">
+      <nav className="dock no-print" aria-label="Views">
+        <p className="dock-brand">LABLESS</p>
+        {[
+          ["board", "Home", "home"],
+          ["report", "Reports", "flag"],
+          ["desk", "Lab", "chip"],
+        ].map(([key, label, icon]) => (
+          <button
+            key={key}
+            type="button"
+            className={view === key ? "on" : ""}
+            aria-current={view === key ? "page" : undefined}
+            onClick={() => setView(key)}
+          >
+            <Icon name={icon} size={18} />
+            <span className="label-full">{label}{key === "board" && high ? ` · ${high}` : ""}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="app-main">
       <TopBar
         llm={state.llm}
         status={state.status}
@@ -195,27 +223,6 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
       />
-
-      <nav className="view-nav no-print" aria-label="Views">
-        <div className="view-nav-in">
-          {[
-            ["board", "Learners at risk", high ? `${high} high` : null],
-            ["report", "Score reports", null],
-            ["desk", "Marking desk", null],
-          ].map(([key, label, extra]) => (
-            <button
-              key={key}
-              type="button"
-              className={view === key ? "on" : ""}
-              aria-current={view === key ? "page" : undefined}
-              onClick={() => setView(key)}
-            >
-              {label}
-              {extra && <span className="nav-count">{extra}</span>}
-            </button>
-          ))}
-        </div>
-      </nav>
 
       {(offline || problem || failure) && (
         <div className="page page-tight no-print">
@@ -241,7 +248,7 @@ export default function App() {
 
       {view === "board" && (
         <div className="page no-print">
-          <RiskBoard state={state} onReport={openReport} onRescue={rescue} onWeek2={week} onWeekReset={clearWeek} notice={notice} error={error} />
+          <RiskBoard state={state} onReport={openReport} onRescue={rescue} onWeek2={week} onWeekReset={clearWeek} onDesk={openDesk} notice={notice} error={error} />
         </div>
       )}
       {view === "report" && (
@@ -268,7 +275,12 @@ export default function App() {
           }}
         />
 
-        {/* The virtual lab, for the practical: attempts done here are marked in the next practical run. */}
+        {(assessment === "practical" || station?.kind === "model" || station?.kind === "lab" || station?.kind === "windows") && (
+          <header className="lab-hero">
+            <h2>{station?.kind === "windows" ? "Windows 11 tasks" : "Your virtual lab"}</h2>
+            <p>{station?.kind === "windows" ? "Software practical · outcomes S1–S4. Simulator by win11.blueedge.me." : "Hardware practical · outcomes H1–H6. Drag a part into the glowing spot, or open a 3D model."}</p>
+          </header>
+        )}
         {(assessment === "practical" || station?.kind === "model") && (
           <div id="virtual-lab">
             <PCAssembly
@@ -387,6 +399,7 @@ export default function App() {
           onChanged={refresh}
         />
       )}
-    </>
+      </div>
+    </div>
   );
 }
