@@ -637,6 +637,12 @@ details[open] > summary .chev { transform: rotate(90deg); }
 /* ---------- the virtual lab (PC assembly) and the 3D model ---------- */
 .select { height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); padding: 0 8px; font: inherit; font-size: 13px; }
 .lab-live { font-size: 12.5px; color: var(--ink-2); margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.challenge-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.progress-pill { min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); display: inline-flex; align-items: center; font-weight: 700; background: var(--surface); }
+.progress-track { height: 8px; border-radius: 999px; background: var(--well); overflow: hidden; margin: 4px 0 12px; }
+.progress-track span { display: block; height: 100%; background: var(--accent-fill); }
+.part-switch { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.sketch-frame { width: 100%; height: 420px; border: 0; border-radius: 12px; background: #111; }
 .lab-bar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); margin-bottom: 12px; }
 .lab-bar b { color: var(--ink); }
 .lab-meter { flex: 1 1 120px; max-width: 240px; }

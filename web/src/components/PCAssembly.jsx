@@ -31,14 +31,14 @@ function Slot({ part, state }) {
 }
 
 /**
- * The PC assembly practical, live. Ported from CompuClass's PCAssemblyScreen (React Native) to the web:
- * pointer events instead of PanResponder, no Expo, Haptics, AsyncStorage or Supabase. Every try is recorded
- * (see assembly.js), and the finished or stopped attempt is saved in the Phase 2 schema for the next
- * practical run, where the team marks it from its log.
+ * PC Assembly Challenge, ported from CompuClass screens/PCAssemblyScreen.js.
+ * Pointer events stand in for PanResponder. Expo, Haptics and progress storage are not used.
+ * The same six parts, slot positions, order, hints and feedback text are kept.
+ * Every try is still recorded (assembly.js) so a saved attempt can be marked.
  */
-export default function PCAssembly({ subs, focus }) {
-  const [learner, setLearner] = useState("");
-  const [attempt, setAttempt] = useState(null);
+export default function PCAssembly({ subs, focus, onViewModel }) {
+  const [learner, setLearner] = useState(focus?.learnerId || "");
+  const [attempt, setAttempt] = useState(() => newAttempt(focus?.learnerId || "", Date.now()));
   const [now, setNow] = useState(Date.now());
   const [drag, setDrag] = useState(null); // { id, x, y } in page coordinates while a part is being dragged
   const [feedback, setFeedback] = useState(null);
@@ -82,7 +82,7 @@ export default function PCAssembly({ subs, focus }) {
       setFeedback({ kind: "ok", text: `Correct! ${name} installed.` });
     } else {
       setFlash((n) => n + 1);
-      setFeedback({ kind: "error", text: what === "wrong_part" ? `Incorrect: the ${name} doesn't go in next.` : `Incorrect: the ${name} goes in the glowing spot.` });
+      setFeedback({ kind: "error", text: what === "wrong_part" ? `Incorrect — the ${name} doesn't go in next.` : `Incorrect — the ${name} goes in the glowing spot.` });
     }
   }
 
@@ -105,8 +105,12 @@ export default function PCAssembly({ subs, focus }) {
 
   async function save() {
     setError("");
+    if (!learner) {
+      setError("Choose a learner from the class, then save the build for marking.");
+      return;
+    }
     try {
-      const out = await saveAttempt(toRecord(attempt, Date.now()));
+      const out = await saveAttempt(toRecord({ ...attempt, learnerId: learner }, Date.now()));
       setSaved(out);
       setLive(await listLiveAttempts());
     } catch (e) {
@@ -127,23 +131,25 @@ export default function PCAssembly({ subs, focus }) {
   return (
     <section className="card lab">
       <header className="card-head">
-        <div>
-          <h2>Virtual lab: PC assembly</h2>
-          <p>
-            A learner builds the PC here; every try is recorded. Saved attempts are marked in the next run of the PC
-            assembly practical, in place of the sample files.
-          </p>
+        <div className="challenge-head">
+          <div>
+            <h2>PC Assembly Challenge</h2>
+            <p>Drag the next part into the glowing spot, or use Place.</p>
+          </div>
+          <span className="progress-pill" aria-label={`${attempt.installed.length} of ${ORDER.length} parts installed`}>
+            {attempt.installed.length}/{ORDER.length}
+          </span>
         </div>
         <div className="ingest-actions">
           <label>
             <span className="sr-only">Learner</span>
-            <select className="select" value={learner} disabled={running} onChange={(e) => setLearner(e.target.value)}>
+            <select className="select" value={learner} onChange={(e) => setLearner(e.target.value)}>
               <option value="">Choose a learner…</option>
               {subs.map((s) => <option key={s.id} value={s.id}>{s.id} {s.learner}</option>)}
             </select>
           </label>
-          <button type="button" className="btn small primary" disabled={!learner || running} onClick={begin}>
-            <Icon name="play" size={14} />{attempt ? "New build" : "Start the build"}
+          <button type="button" className="btn small" onClick={begin}>
+            New Build
           </button>
         </div>
       </header>
@@ -151,8 +157,8 @@ export default function PCAssembly({ subs, focus }) {
       {focus?.step && (
         <p className="rescue-note" role="status">
           Catch-up step: <b>{PARTS.find((part) => part.id.toLowerCase() === String(focus.step).toLowerCase())?.name || focus.step}</b>.
-          {focus.learnerId ? ` ${names[focus.learnerId] || focus.learnerId} is selected.` : " Choose the learner, then start the build."}
-          {" "}Earlier parts have to go in first. The part is highlighted in the tray once the build starts.
+          {focus.learnerId ? ` ${names[focus.learnerId] || focus.learnerId} is selected.` : ""}
+          {" "}Earlier parts have to go in first. This part is highlighted in the tray.
         </p>
       )}
 
@@ -165,12 +171,11 @@ export default function PCAssembly({ subs, focus }) {
 
       {attempt && (
         <>
+          <div className="progress-track" aria-hidden="true">
+            <span style={{ width: `${(100 * attempt.installed.length) / ORDER.length}%` }} />
+          </div>
           <div className="lab-bar">
-            <b>{attempt.learnerId} {names[attempt.learnerId]}</b>
-            <span className="meter lab-meter" role="img" aria-label={`${attempt.installed.length} of ${ORDER.length} parts installed`}>
-              <span style={{ width: `${(100 * attempt.installed.length) / ORDER.length}%` }} />
-            </span>
-            <span className="mono">{attempt.installed.length}/{ORDER.length}</span>
+            {learner && <b>{learner} {names[learner]}</b>}
             <span className="mono"><Icon name="clock" size={13} /> {clock(record.duration_seconds)}</span>
             <span>{record.mistakes} mistake{record.mistakes === 1 ? "" : "s"} · {record.hints} hint{record.hints === 1 ? "" : "s"}</span>
           </div>
@@ -208,12 +213,14 @@ export default function PCAssembly({ subs, focus }) {
                   <div>
                     <b>{isDone(attempt) ? "Build complete!" : `Stopped with ${attempt.installed.length} of ${ORDER.length} parts in.`}</b>
                     <p>
-                      {record.mistakes === 0 ? "No mistakes." : `${record.mistakes} mistake${record.mistakes === 1 ? "" : "s"}`}
-                      {" "}in {clock(record.duration_seconds)}, with {record.hints} hint{record.hints === 1 ? "" : "s"}.
+                      {isDone(attempt)
+                        ? (record.mistakes === 0 ? "Perfect build — no mistakes!" : `Finished with ${record.mistakes} mistake${record.mistakes === 1 ? "" : "s"}.`)
+                        : `${record.mistakes} mistake${record.mistakes === 1 ? "" : "s"} in ${clock(record.duration_seconds)}.`}
                     </p>
                   </div>
                   <div className="lab-info-actions">
-                    <button type="button" className="btn small primary" disabled={Boolean(saved)} onClick={save}>
+                    <button type="button" className="btn small primary" onClick={begin}>New Build</button>
+                    <button type="button" className="btn small" disabled={Boolean(saved)} onClick={save}>
                       <Icon name="check" size={14} />{saved ? "Saved for marking" : "Save for marking"}
                     </button>
                     <a className="btn small" href={download} download={`${attempt.learnerId}.json`}>
@@ -225,7 +232,7 @@ export default function PCAssembly({ subs, focus }) {
             </div>
 
             <div className="lab-tray">
-              <h3>Components</h3>
+              <h3>Drag and drop components</h3>
               <ul className="tray-grid">
                 {remaining.map((p) => (
                   <li key={p.id} className="tray-item">
@@ -239,12 +246,17 @@ export default function PCAssembly({ subs, focus }) {
                       <img src={IMG(p.img)} alt="" draggable={false} />
                       <span>{p.name}</span>
                     </div>
-                    <button type="button" className="btn small" disabled={!running} onClick={() => attemptPart(p.id, true)} aria-label={`Place the ${p.name}`}>
+                    <button type="button" className="btn small" disabled={!running} onClick={() => attemptPart(p.id, true)} aria-label={`Place ${p.name}`}>
                       Place
                     </button>
+                    {onViewModel && (
+                      <button type="button" className="btn small" onClick={() => onViewModel(p.id)}>
+                        View model
+                      </button>
+                    )}
                   </li>
                 ))}
-                {remaining.length === 0 && <li className="empty-note">All parts installed.</li>}
+                {remaining.length === 0 && <li className="empty-note">All parts installed</li>}
               </ul>
             </div>
           </div>

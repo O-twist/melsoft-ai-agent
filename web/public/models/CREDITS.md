@@ -12,6 +12,25 @@ Copied unchanged from CompuClass (Channel-Zero/Compuclass-v1.5, `CompuClass-v.1.
 
 ## PC assembly pictures: `pc-assembly/*.png`
 
-`case-open.png`, `motherboard.png`, `cpu.png`, `ram.png`, `gpu.png`, `ssd.png` and `psu.png` are copied
-unchanged from CompuClass (`CompuClass-v.1.0-main/assets/pc-assembly/`), the team's own app, where
-`screens/PCAssemblyScreen.js` uses them. The slot positions in `src/assembly.js` are taken from that screen.
+`case-open.png`, `motherboard.png`, `cpu.png`, `ram.png`, `gpu.png`, `ssd.png`, `psu.png`, `cooler.png`,
+`fan.png` and `hdd.png` are copied unchanged from CompuClass (`CompuClass-v.1.0-main/assets/pc-assembly/`),
+the team's own app, where `screens/PCAssemblyScreen.js` uses the six build parts. The slot positions in
+`src/assembly.js` are taken from that screen. The cooler, fan and hard-drive pictures ship with that folder
+and are kept with the set.
+
+## Per-part Sketchfab models
+
+The part viewers use the same Sketchfab embeds as CompuClass `components/RamAR.js`, `CPUAR.js`, `GPUAR.js`,
+`PSUAR.js`, `MotherboardAR.js` and `StorageAR.js` (the same model ids are on lutho_branch). Each is
+CC BY 4.0. The credit is shown under the viewer.
+
+| Part | Model | Author |
+|---|---|---|
+| RAM | Random Access Memory - RAM Stick - PC | Diego G. (empty_mirror) |
+| CPU | 3D PBR Quantum GenX3 Processor / CPU (Imaginary) | Mustafa Özgen |
+| Graphics card | Asus ROG Geforce RTX 4090 v2.0 | MajdyModels |
+| Power supply | Power Supply - Basic | Up1x (alexlh2003) |
+| Motherboard | Motherboard | MaaB |
+| SSD | (SSD) Solid State Drive | MarkCP |
+
+`RealAR.js` shows the whole PC. LabLess uses the local copy of that model, not the GitHub raw URL.

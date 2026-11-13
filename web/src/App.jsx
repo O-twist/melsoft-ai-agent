@@ -21,7 +21,7 @@ import ScriptIngest from "./components/ScriptIngest.jsx";
 import IngestReview from "./components/IngestReview.jsx";
 import PCAssembly from "./components/PCAssembly.jsx";
 import WindowsStation from "./components/WindowsStation.jsx";
-import ModelViewer from "./components/ModelViewer.jsx";
+import PartModels from "./components/PartModels.jsx";
 import CorrectionsPanel from "./components/CorrectionsPanel.jsx";
 import ClassUpload from "./components/ClassUpload.jsx";
 import DetailDrawer from "./components/DetailDrawer.jsx";
@@ -69,6 +69,7 @@ export default function App() {
   const [focusId, setFocusId] = useState(null);
   const [notice, setNotice] = useState("");
   const [station, setStation] = useState(null);
+  const [partId, setPartId] = useState("");
   const closeDrawer = useCallback(() => setOpenId(null), []);
 
   // Joining a run that is already under way (a reload, or a second window): show the goal it was given.
@@ -123,6 +124,7 @@ export default function App() {
 
   function openCatchUp(learner, link) {
     setStation({ ...link, learnerId: learner.id, nonce: Date.now() });
+    if (link.kind === "model") setPartId(link.target);
     if (link.kind !== "windows") setAssessment("practical");
     setView("desk");
   }
@@ -266,23 +268,21 @@ export default function App() {
           }}
         />
 
-        {station?.kind === "model" && (
-          <section className="card" id="part-viewer">
-            <header className="card-head">
-              <div>
-                <h2>Look at the part</h2>
-                <p>The catch-up opens the 3D PC on the part this gap is about.</p>
-              </div>
-            </header>
-            <ModelViewer part={station.target} />
-          </section>
-        )}
-
         {/* The virtual lab, for the practical: attempts done here are marked in the next practical run. */}
-        {assessment === "practical" && (
+        {(assessment === "practical" || station?.kind === "model") && (
           <div id="virtual-lab">
-            <PCAssembly subs={state.subs} focus={station?.kind === "lab" ? station : null} />
+            <PCAssembly
+              subs={state.subs}
+              focus={station?.kind === "lab" ? station : station?.kind === "model" ? { learnerId: station.learnerId, step: station.target, nonce: station.nonce } : null}
+              onViewModel={(id) => {
+                setPartId(id);
+                document.getElementById("part-viewer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
           </div>
+        )}
+        {(assessment === "practical" || station?.kind === "model") && (
+          <PartModels part={partId || (station?.kind === "model" ? station.target : "pc")} nonce={station?.nonce} />
         )}
 
         <WindowsStation subs={state.subs} focus={station?.kind === "windows" ? station : null} onSaved={refresh} />
