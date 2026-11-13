@@ -38,21 +38,21 @@ export default function TeamBoard({ agents, spans, now, status }) {
   const end = Math.max(running ? now : 0, lastEnd, 5);
   const ticks = ticksFor(end);
   const at = (t) => `${(100 * Math.min(t, end)) / end}%`;
-  // Only the agents on this run's team get a lane: the Clerk appears when there were photos to read.
-  const team = Object.entries(AGENTS).filter(([key]) => key in agents);
+  // All seven agents always have a lane. One this run did not call on (the Clerk, when there are no photos) is "off".
+  const team = Object.entries(AGENTS);
 
   return (
     <section className="card team">
       <header className="card-head">
         <div>
           <h2>The team at work</h2>
-          <p>Each bar is one piece of work by one agent, on the run's clock.</p>
+          <p>Seven agents share one plan. Each bar is one piece of work by one agent, on the run's clock.</p>
         </div>
       </header>
 
       <div className="lanes" style={{ "--lanes": team.length }}>
         {team.map(([key, agent]) => {
-          const state = agents[key] || "waiting";
+          const state = agents[key] || "off";
           const mine = spans.filter((s) => s.agent === key);
           return (
             <div className={`lane a-${key} ${state === "off" ? "off" : ""}`} key={key}>

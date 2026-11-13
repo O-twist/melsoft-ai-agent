@@ -15,13 +15,13 @@ export const capital = (text) => `${text[0].toUpperCase()}${text.slice(1)}`;
  * handwritten scripts; the server's list of agents says who is on the team for a run.
  */
 export const AGENTS = {
-  PL: { name: "Planner", job: "Turns the goal into a plan" },
-  CL: { name: "Clerk", job: "Reads handwritten scripts" },
-  MK: { name: "Marker", job: "Marks against the rubric" },
-  RV: { name: "Reviewer", job: "Checks marks and agreement" },
-  MS: { name: "Messenger", job: "Writes feedback and reports" },
-  CO: { name: "Coach", job: "Plans catch-up for who is behind" },
-  DS: { name: "Designer", job: "Drafts the next lesson" },
+  PL: { name: "Planner", job: "Plans the work and scores the risk" },
+  CL: { name: "Clerk", job: "Reads photographed scripts" },
+  MK: { name: "Marker", job: "Marks theory and the practical" },
+  RV: { name: "Reviewer", job: "Marks again blind, checks the evidence" },
+  MS: { name: "Messenger", job: "Writes feedback and score reports" },
+  CO: { name: "Coach", job: "Writes each rescue plan" },
+  DS: { name: "Designer", job: "Drafts the next lesson, without names" },
 };
 
 /** Who an entry in an essay's history belongs to: an agent key, or a tone for people and tests. */
