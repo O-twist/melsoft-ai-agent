@@ -15,6 +15,7 @@ from . import risk, tools, week2
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 MIGRATION = "supabase/migrations/20261113233000_lablest.sql"
+SEED = "supabase/seed.sql"
 _state = {"saved": {}, "week": None, "miss_until": 0.0, "fail_until": 0.0}
 
 
@@ -291,27 +292,9 @@ def _insert(table, columns, rows, conflict):
     return statement + ";\n"
 
 
-def demo_migration():
-    """SQL for the tables, row level security, and the demo class with the Week 2 numbers."""
-    before = risk.assess(DATA)
-    after = week2.project(DATA)
-    week1 = snapshot(before, DATA, week=1)
-    week2_rows = snapshot(after["after"], DATA, week=2)
-    plans = [{
-        "learner_id": change["id"],
-        "summary": after["summary"],
-        "risk_before": change["risk_before"],
-        "risk_after": change["risk_after"],
-        "band_before": change["band_before"],
-        "band_after": change["band_after"],
-        "overall_before": change["overall_before"],
-        "overall_after": change["overall_after"],
-        "result_before": change["result_before"],
-        "result_after": change["result_after"],
-    } for change in after["changes"]]
-    ids = ", ".join(_sql(row["id"]) for row in week1["learners"])
+def _policies():
     tables = ("learners", "marks", "practical_outcomes", "risk_scores", "rescue_plans", "score_reports", "week_runs")
-    policies = "\n".join(
+    return "\n".join(
         f"alter table public.{name} enable row level security;\n"
         f"drop policy if exists {name}_read on public.{name};\n"
         f"create policy {name}_read on public.{name} for select to anon, authenticated using (true);\n"
@@ -320,13 +303,13 @@ def demo_migration():
         f"grant select, insert, update, delete on public.{name} to service_role;"
         for name in tables
     )
-    return f"""-- LabLess demo store. Run this in the Supabase SQL editor.
+
+
+def schema_sql():
+    """Tables and row level security only. Apply this before supabase/seed.sql."""
+    return f"""-- LabLess tables. Run this in the Supabase SQL editor, then run supabase/seed.sql.
 -- Do not put keys in this file. The server reads SUPABASE_URL, SUPABASE_ANON_KEY
 -- and SUPABASE_SERVICE_ROLE_KEY from the environment.
---
--- Week 1 for Bongani Sithole (E10) is risk 53 (High) and overall 57 (Pass).
--- Week 2, after the rescue plan, is risk 22 (Low) and overall 78 (Pass).
--- week_runs is left empty so the dashboard still opens on Week 1.
 
 create table if not exists public.learners (
   id text primary key,
@@ -394,8 +377,37 @@ create table if not exists public.week_runs (
   updated_at timestamptz not null default now()
 );
 
-{policies}
+{_policies()}
 grant usage, select on all sequences in schema public to service_role;
+"""
+
+
+def seed_sql():
+    """The demo class, including Week 2 for Bongani: risk 53 to 22, overall 57 to 78.
+
+    week_runs is left empty so the dashboard still opens on Week 1.
+    """
+    before = risk.assess(DATA)
+    after = week2.project(DATA)
+    week1 = snapshot(before, DATA, week=1)
+    week2_rows = snapshot(after["after"], DATA, week=2)
+    plans = [{
+        "learner_id": change["id"],
+        "summary": after["summary"],
+        "risk_before": change["risk_before"],
+        "risk_after": change["risk_after"],
+        "band_before": change["band_before"],
+        "band_after": change["band_after"],
+        "overall_before": change["overall_before"],
+        "overall_after": change["overall_after"],
+        "result_before": change["result_before"],
+        "result_after": change["result_after"],
+    } for change in after["changes"]]
+    ids = ", ".join(_sql(row["id"]) for row in week1["learners"])
+    return f"""-- LabLess demo class. Run supabase/migrations/20261113233000_lablest.sql first.
+-- Week 1 for Bongani Sithole (E10) is risk 53 (High) and overall 57 (Pass).
+-- Week 2, after the rescue plan, is risk 22 (Low) and overall 78 (Pass).
+-- week_runs is left empty so the dashboard still opens on Week 1.
 
 {_insert("learners", ["id", "name", "email", "previous"], week1["learners"], ["id"])}
 {_insert("marks", ["learner_id", "kind", "week", "percent", "score", "max_score", "result"], week1["marks"] + week2_rows["marks"], ["learner_id", "kind", "week"])}

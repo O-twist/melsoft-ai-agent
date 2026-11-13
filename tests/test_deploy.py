@@ -131,14 +131,18 @@ class DeployTests(unittest.TestCase):
         self.assertIn('"overall_after": 78', rescue)
 
     def test_migration_seeds_the_same_week_two_story(self):
-        text = (ROOT / store.MIGRATION).read_text(encoding="utf-8")
-        self.assertEqual(text, store.demo_migration())
-        self.assertIn("enable row level security", text)
-        self.assertIn("Sipho Ndlovu", text)
-        self.assertIn("Ruan Botha", text)
-        self.assertIn("Bongani Sithole", text)
+        schema = (ROOT / store.MIGRATION).read_text(encoding="utf-8")
+        seed = (ROOT / store.SEED).read_text(encoding="utf-8")
+        self.assertEqual(schema, store.schema_sql())
+        self.assertEqual(seed, store.seed_sql())
+        self.assertIn("enable row level security", schema)
+        self.assertNotIn("Sipho Ndlovu", schema)
+        self.assertNotIn("insert into", schema.lower())
+        self.assertIn("Sipho Ndlovu", seed)
+        self.assertIn("Ruan Botha", seed)
+        self.assertIn("Bongani Sithole", seed)
         self.assertRegex(
-            text,
+            seed,
             r"\(\$labless\$E10\$labless\$, \$labless\$.*\$labless\$, 53, 22, \$labless\$High\$labless\$, "
             r"\$labless\$Low\$labless\$, 57, 78, \$labless\$Pass\$labless\$, \$labless\$Pass\$labless\$\)",
         )

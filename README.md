@@ -72,7 +72,7 @@ Supabase is a copy of the class, not a requirement. The server reads these envir
 Set them in the Vercel project (Production, and Preview if you want the copy there too). Do not prefix them for the browser, and do not commit the values.
 
 1. Create a Supabase project.
-2. Open the SQL editor and run `supabase/migrations/20261113233000_lablest.sql`. It creates `learners`, `marks`, `practical_outcomes` (H1–H6 and S1–S4), `risk_scores`, `rescue_plans`, `score_reports` and `week_runs`, turns on row level security, and seeds the twelve learners with the same Week 1 and Week 2 numbers. `week_runs` is left empty, so the dashboard still opens on Week 1.
+2. Open the SQL editor and run `supabase/migrations/20261113233000_lablest.sql`. It creates `learners`, `marks`, `practical_outcomes` (H1–H6 and S1–S4), `risk_scores`, `rescue_plans`, `score_reports` and `week_runs`, and turns on row level security. Then run `supabase/seed.sql`. That seeds the twelve learners with the same Week 1 and Week 2 numbers. `week_runs` is left empty, so the dashboard still opens on Week 1.
 3. Add the variables in Vercel and redeploy.
 
 If the variables are missing, or Supabase returns an error, LabLess keeps scoring the files in `data/` and the demo carries on. A failed call is not retried for two minutes, so a quiet database cannot stall the page.
