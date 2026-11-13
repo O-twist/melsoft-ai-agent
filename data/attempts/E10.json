@@ -1,0 +1,41 @@
+{
+ "learner_id": "E10",
+ "order_tried": [
+  "GPU",
+  "motherboard",
+  "RAM",
+  "CPU",
+  "RAM",
+  "SSD",
+  "GPU",
+  "PSU",
+  "SSD",
+  "PSU"
+ ],
+ "mistakes": 4,
+ "hints": 2,
+ "wrong_placements": [
+  {
+   "part": "GPU",
+   "expected": "motherboard",
+   "t": 15
+  },
+  {
+   "part": "RAM",
+   "expected": "CPU",
+   "t": 52
+  },
+  {
+   "part": "SSD",
+   "expected": "GPU",
+   "t": 140
+  },
+  {
+   "part": "PSU",
+   "expected": "SSD",
+   "t": 205
+  }
+ ],
+ "completed": true,
+ "duration_seconds": 470
+}

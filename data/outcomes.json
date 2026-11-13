@@ -1,0 +1,20 @@
+{
+  "source": "Written for this essay task in the style of the CAPS 'Writing and Presenting' skills for Grade 10 English. They are not official codes: replace them with the outcomes you teach to.",
+  "outcomes": [
+    {"id": "W1", "text": "Plan before writing: brainstorm ideas, choose the relevant ones and put them in order.", "criteria": ["content"]},
+    {"id": "W2", "text": "Develop each paragraph around one main idea, with a topic sentence and a specific example or detail.", "criteria": ["content"]},
+    {"id": "W3", "text": "Stay on the topic that was set and take a clear position on it.", "criteria": ["content"]},
+    {"id": "W4", "text": "Organise an essay with an introduction, logically ordered paragraphs and a conclusion.", "criteria": ["structure"]},
+    {"id": "W5", "text": "Link sentences and paragraphs with connecting words and phrases.", "criteria": ["structure"]},
+    {"id": "W6", "text": "Use correct grammar, spelling and punctuation, including capital letters and subject-verb agreement.", "criteria": ["language"]},
+    {"id": "W7", "text": "Choose vocabulary and a tone that suit a formal essay.", "criteria": ["language"]},
+    {"id": "W8", "text": "Edit and proofread a draft against a checklist before handing it in.", "criteria": ["language"]},
+
+    {"id": "H1", "assessment": "practical", "text": "Identify the main components of a desktop PC and say what each one does.", "criteria": ["correctness"]},
+    {"id": "H2", "assessment": "practical", "text": "Explain why components are installed in a set order: the motherboard first, power last.", "criteria": ["order"]},
+    {"id": "H3", "assessment": "practical", "text": "Install the CPU and RAM in the correct socket and slots before any expansion card.", "criteria": ["order", "correctness"]},
+    {"id": "H4", "assessment": "practical", "text": "Fit expansion cards and storage in the correct slots and bays.", "criteria": ["correctness"]},
+    {"id": "H5", "assessment": "practical", "text": "Connect the power supply last and check the build before switching on.", "criteria": ["order", "correctness"]},
+    {"id": "H6", "assessment": "practical", "text": "Plan a build in advance and complete it independently within the time allowed.", "criteria": ["efficiency"]}
+  ]
+}

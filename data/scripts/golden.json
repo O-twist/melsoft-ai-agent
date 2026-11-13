@@ -1,0 +1,89 @@
+{
+ "about": "Golden reads of the sample handwritten scripts, for the offline mock only. The mock recognises a page by the SHA-256 of its bytes and returns these reads: the first entry on the first read, the last entry on a re-read. A live model reads the images themselves and never sees this file.",
+ "pages": [
+  {
+   "file": "ruan_botha_p1.jpg",
+   "sha256": "986a65a7e9ed7f4377f5a912937325b3fb097542f3766e7eb69529c88a83f03a",
+   "reads": [
+    {
+     "name": "Ruan Botha",
+     "page": 1,
+     "of": 2,
+     "lines": 13,
+     "text": "Is technology good for us?\n\nSome people say technology is ruining young people, but I\nbelieve it has done more good than harm for young South\nAfricans, as long as we use it the right way.\n\nFirstly, technology helps us with school. When I was sick for\na week I watched the lessons on YouTube and I did not fall\nbehind. My cousin in Upington uses a free app to practise\nmaths every night because there is no tutor in his town.\n\nSecondly, technology gives young people a chance to earn\nmoney. My brother sells car parts on Facebook Marketplace\nand he saves for his studies. Many young people find jobs\nand bursaries online that they would never hear about\notherwise.",
+     "confidence": 0.94,
+     "problem": ""
+    }
+   ]
+  },
+  {
+   "file": "ruan_botha_p2.jpg",
+   "sha256": "b6c6ac74010d7687ef4aabb8623f10f1d619bd495489547920d905517242b563",
+   "reads": [
+    {
+     "name": "Ruan Botha",
+     "page": 2,
+     "of": 2,
+     "lines": 7,
+     "text": "However, there is also harm. Some learners are on their\nphones until two in the morning and then they fall asleep in\nclass. Cyberbullying is a real problem and it can make people\nfeel worthless.\n\nIn conclusion, technology is like a tool. It can hurt you if you\nuse it wrong, but it has given my generation more\nopportunities than any generation before us.",
+     "confidence": 0.94,
+     "problem": ""
+    }
+   ]
+  },
+  {
+   "file": "sipho_ndlovu_p1.jpg",
+   "sha256": "54c1da0064d201f2cb7163c6d1bda15a34c8909212a08b09b238b3adb8ba6494",
+   "reads": [
+    {
+     "name": "Sipho Ndlovo",
+     "page": 1,
+     "of": 2,
+     "lines": 10,
+     "text": "Technology good or bad\n\nTechnology is good for young people in south africa. i\nthink it has done more good then harm. we use phones\nevery day and it help us alot.\n\nFirst, you can learn on the internet. when i dont\nunderstand in class i watch a video and then i\nunderstand it better. also we can do research for\nprojects fast.\n\nSecond you can talk to your family who is far. my uncle\nwork in Cape Town and we whatsapp him every week.",
+     "confidence": 0.88,
+     "problem": ""
+    },
+    {
+     "name": "Sipho Ndlovu",
+     "page": 1,
+     "of": 2,
+     "lines": 10,
+     "text": "Technology good or bad\n\nTechnology is good for young people in south africa. i\nthink it has done more good then harm. we use phones\nevery day and it help us alot.\n\nFirst, you can learn on the internet. when i dont\nunderstand in class i watch a video and then i\nunderstand it better. also we can do research for\nprojects fast.\n\nSecond you can talk to your family who is far. my uncle\nwork in Cape Town and we whatsapp him every week.",
+     "confidence": 0.93,
+     "problem": ""
+    }
+   ]
+  },
+  {
+   "file": "sipho_ndlovu_p2.jpg",
+   "sha256": "0baec011b17c151815c331dc8d49fe8f128893d5e6b0cdbb62fadcc0331d4b58",
+   "reads": [
+    {
+     "name": "",
+     "page": 2,
+     "of": 2,
+     "lines": 5,
+     "text": "But technology is also bad sometimes. some children are\non there phones all night and they are tired at school.\nand there is cyber bullying which make people sad.\n\nIn conclusion technology is more good then bad because\nit help us learn and talk to people.",
+     "confidence": 0.94,
+     "problem": ""
+    }
+   ]
+  },
+  {
+   "file": "bongani_sithole_p1.jpg",
+   "sha256": "a6c67f1595e45d1188a751b07d218be095256ad627b4d5baffb247c94684b52d",
+   "reads": [
+    {
+     "name": "Bongani Sithole",
+     "page": 1,
+     "of": 2,
+     "lines": 8,
+     "text": "Technology\n\nTechnology has done more harm than good i think.\nBecuase young people dont go outside anymore and\nthey just sit with phones. Also they dont respect\nelders because of what they see on the internet.\n\nThere is good things like you can google your\nhomework and you can watch soccer highlights. And\nyou can apply for jobs.",
+     "confidence": 0.94,
+     "problem": ""
+    }
+   ]
+  }
+ ]
+}

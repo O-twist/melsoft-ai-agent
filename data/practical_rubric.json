@@ -1,0 +1,53 @@
+{
+  "kind": "practical",
+  "work": "practical attempt",
+  "subject": "Grade 10 Computer Applications Technology",
+  "title": "PC assembly practical (Grade 10 CAT, 40 marks)",
+  "task": "Assemble a desktop PC in the virtual lab: install the motherboard, CPU, RAM, GPU, SSD and power supply, in the order a technician would, without damaging anything.",
+  "parts": ["motherboard", "CPU", "RAM", "GPU", "SSD", "PSU"],
+  "min_words": 20,
+  "limits": {
+    "about": "Ceilings worked out in code from each attempt's log. A mark above its ceiling is sent back to the Marker, whatever a model says.",
+    "order_penalty": 3,
+    "hint_penalty": 2,
+    "target_seconds": 240,
+    "slow_factor": 2,
+    "slow_cap_pct": 50
+  },
+  "support": {"below_pct": 50, "drop_points": 15, "criterion_below_pct": 40},
+  "criteria": [
+    {
+      "id": "order",
+      "name": "Build order",
+      "max": 15,
+      "bands": [
+        {"range": [13, 15], "text": "Every part installed in a technician's order: the motherboard first, then CPU, RAM, GPU and SSD, power last. No part tried out of turn."},
+        {"range": [9, 12], "text": "Mostly in order. One or two parts were tried before the part they depend on, and the learner corrected it."},
+        {"range": [5, 8], "text": "Order is often wrong. Several parts were tried before the parts they sit on or connect to."},
+        {"range": [0, 4], "text": "No sense of order: parts tried at random, the motherboard or power supply out of place."}
+      ]
+    },
+    {
+      "id": "correctness",
+      "name": "Correct installation",
+      "max": 15,
+      "bands": [
+        {"range": [13, 15], "text": "All six parts installed in the right slots and sockets, and the build was finished."},
+        {"range": [9, 12], "text": "Build finished, with a few parts first placed in the wrong slot before being corrected."},
+        {"range": [5, 8], "text": "Build not finished, or many parts placed in the wrong slot."},
+        {"range": [0, 4], "text": "Only one or two parts installed correctly."}
+      ]
+    },
+    {
+      "id": "efficiency",
+      "name": "Efficiency and independence",
+      "max": 10,
+      "bands": [
+        {"range": [9, 10], "text": "Worked independently with no hints, within the target time of four minutes."},
+        {"range": [6, 8], "text": "Needed a hint or went somewhat over the target time."},
+        {"range": [3, 5], "text": "Needed several hints, or took twice the target time."},
+        {"range": [0, 2], "text": "Relied on hints throughout and did not get far."}
+      ]
+    }
+  ]
+}

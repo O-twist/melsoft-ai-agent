@@ -1,0 +1,23 @@
+{
+ "learner_id": "E11",
+ "order_tried": [
+  "motherboard",
+  "RAM",
+  "CPU",
+  "RAM",
+  "GPU",
+  "SSD",
+  "PSU"
+ ],
+ "mistakes": 1,
+ "hints": 0,
+ "wrong_placements": [
+  {
+   "part": "RAM",
+   "expected": "CPU",
+   "t": 33
+  }
+ ],
+ "completed": true,
+ "duration_seconds": 210
+}

@@ -1,0 +1,44 @@
+{
+  "title": "Grade 10 English essay rubric (CAPS-style, 50 marks)",
+  "task": "Write an essay of 200-250 words on the topic: 'Technology has done more good than harm for young South Africans.' Discuss.",
+  "min_words": 60,
+  "support": {"below_pct": 50, "drop_points": 15, "criterion_below_pct": 40},
+  "criteria": [
+    {
+      "id": "content",
+      "name": "Content and planning",
+      "max": 30,
+      "bands": [
+        {"range": [25, 30], "text": "Outstanding response to the topic. Ideas are intelligent, mature and fully developed with specific examples. Clear evidence of planning."},
+        {"range": [19, 24], "text": "Very good response. Ideas are relevant and well developed, with some specific detail. Planning is evident."},
+        {"range": [13, 18], "text": "Satisfactory response. Ideas are relevant but ordinary or only partly developed; examples are general."},
+        {"range": [7, 12], "text": "Inconsistent response. Ideas are thin, repetitive or unclear; little development or planning."},
+        {"range": [0, 6], "text": "Off topic, largely irrelevant, or far too short to assess. No evidence of planning."}
+      ]
+    },
+    {
+      "id": "language",
+      "name": "Language, style and editing",
+      "max": 15,
+      "bands": [
+        {"range": [13, 15], "text": "Tone, register and vocabulary highly appropriate. Language is confident and virtually error-free."},
+        {"range": [10, 12], "text": "Language is effective and largely correct; vocabulary is appropriate with minor errors."},
+        {"range": [7, 9], "text": "Language is adequate; errors in grammar, spelling or punctuation do not impede meaning."},
+        {"range": [4, 6], "text": "Limited vocabulary; frequent errors that sometimes impede meaning."},
+        {"range": [0, 3], "text": "Language is seriously flawed; errors make the text hard to understand."}
+      ]
+    },
+    {
+      "id": "structure",
+      "name": "Structure",
+      "max": 5,
+      "bands": [
+        {"range": [5, 5], "text": "Clear introduction, logically ordered paragraphs with links between them, and a strong conclusion."},
+        {"range": [4, 4], "text": "Logical paragraphs with an introduction and conclusion; some linking."},
+        {"range": [3, 3], "text": "Paragraphing present but uneven; introduction or conclusion is weak."},
+        {"range": [2, 2], "text": "Little paragraphing; ideas are loosely ordered."},
+        {"range": [0, 1], "text": "No paragraphing or logical order."}
+      ]
+    }
+  ]
+}
