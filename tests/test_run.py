@@ -909,12 +909,14 @@ class OpenRouterClient(unittest.TestCase):
                 for k in ("MOCK", "GEMINI_API_KEY", "OPENROUTER_API_KEY"):
                     if k not in env:
                         os.environ.pop(k, None)
-                return type(make_llm()).__name__
-        self.assertEqual(pick(), "Mock")
-        self.assertEqual(pick(GEMINI_API_KEY="g"), "Gemini")
-        self.assertEqual(pick(OPENROUTER_API_KEY="o"), "OpenRouter")
-        self.assertEqual(pick(GEMINI_API_KEY="g", OPENROUTER_API_KEY="o"), "Fallback")
-        self.assertEqual(pick(GEMINI_API_KEY="g", OPENROUTER_API_KEY="o", MOCK="1"), "Mock")
+                llm = make_llm()
+                return [backend.name for backend in getattr(llm, "chain", [llm])]
+        self.assertEqual(pick(), ["mock"])
+        # Whenever a live model is used, the offline marker stands behind it.
+        self.assertEqual(pick(GEMINI_API_KEY="g"), ["gemini", "mock"])
+        self.assertEqual(pick(OPENROUTER_API_KEY="o"), ["openrouter", "mock"])
+        self.assertEqual(pick(GEMINI_API_KEY="g", OPENROUTER_API_KEY="o"), ["gemini", "openrouter", "mock"])
+        self.assertEqual(pick(GEMINI_API_KEY="g", OPENROUTER_API_KEY="o", MOCK="1"), ["mock"])
         self.assertEqual(os.environ.get("MOCK"), "1")  # the tests' own setting is restored
 
     def test_a_run_finishes_on_openrouter_when_gemini_is_busy(self):
@@ -933,6 +935,68 @@ class OpenRouterClient(unittest.TestCase):
         self.assertEqual(r.snapshot()["llm"]["name"], "openrouter")
         self.assertEqual(llm.primary.calls, 1)  # Gemini was asked once, not once per step
         self.assertTrue(any("Switching to OpenRouter" in e["msg"] for e in r.events))
+
+    def test_the_offline_marker_takes_over_when_no_live_model_answers(self):
+        FakeGemini.script = [error(503, "Overloaded.")] * 3
+        g = Gemini("gemini-key")
+        g.min_gap, g.delays = 0, [0, 0, 0, 0]
+        llm = Fallback(g, self.router_client([error(429, "Rate limit exceeded: free-models-per-day.")]), Mock())
+        self.assertEqual((llm.name, llm.standby), ("gemini", "openrouter/free"))
+        reply = llm.call("intake", "You are the Planner.", "Read them?", {"goal": "Mark the essays.", "pages": 2}, log=self.notes.append)
+        self.assertIn("ingest", reply)  # the offline marker answered
+        self.assertEqual((llm.name, llm.standby), ("mock", None))
+        self.assertEqual((len(FakeGemini.seen), len(FakeOpenRouter.seen)), (3, 1))
+        self.assertTrue(any("Gemini could not answer" in n and "Switching to OpenRouter" in n for n in self.notes))
+        self.assertTrue(any("OpenRouter could not answer" in n and "offline demo marker" in n for n in self.notes))
+
+    def test_a_run_finishes_offline_when_every_live_model_fails(self):
+        class Down(Gemini):
+            def call(self, *a, **k):
+                self.calls += 1
+                raise Busy("Gemini HTTP 503: high demand")
+
+        class Refused(OpenRouter):
+            def call(self, *a, **k):
+                self.calls += 1
+                raise LLMError("OpenRouter refused the API key (HTTP 401).")
+
+        for live in ([Down("k"), Refused("k")], [Down("k")], [Refused("k")]):
+            llm = Fallback(*live, Mock())
+            r = Run(llm, GOAL, DATA, tempfile.mkdtemp())
+            r._guarded()
+            self.assertEqual(r.status, "done")
+            self.assertEqual(r.stats["delivered"], 11)
+            snap = r.snapshot()["llm"]
+            self.assertEqual((snap["name"], snap["switched"]), ("mock", True))
+            self.assertEqual([backend.calls for backend in live], [1] * len(live))  # each was asked once, not once per step
+            self.assertTrue(any("offline demo marker" in e["msg"] for e in r.events))  # and the log says so
+            self.assertFalse(any(e["kind"] == "ERROR" for e in r.events))
+
+    def test_a_model_that_answers_nonsense_is_replaced_too(self):
+        FakeGemini.script = [answer("no"), answer("still no"), answer("nope")]
+        g = Gemini("gemini-key")
+        g.min_gap = 0
+        llm = Fallback(g, Mock())
+        reply = llm.call("intake", "You are the Planner.", "Read them?", {"goal": "Mark the essays.", "pages": 2}, log=self.notes.append)
+        self.assertIn("ingest", reply)
+        self.assertEqual(llm.name, "mock")
+
+    def test_live_models_are_given_a_time_limit_when_one_is_set(self):
+        class Slow(Mock):
+            name, model = "gemini", "gemini-test"
+
+        llm = Fallback(Slow(), Mock(), deadline=0.05)
+        llm.call("intake", "s", "p", {"goal": "Mark the essays.", "pages": 2}, log=self.notes.append)
+        self.assertEqual(llm.name, "gemini")  # inside the limit the live model keeps the work
+        time.sleep(0.1)
+        llm.call("intake", "s", "p", {"goal": "Mark the essays.", "pages": 2}, log=self.notes.append)
+        self.assertEqual(llm.name, "mock")
+        self.assertTrue(any("offline demo marker" in n for n in self.notes))
+        untimed = Fallback(Slow(), Mock(), deadline=0)
+        untimed.call("intake", "s", "p", {"goal": "Mark the essays.", "pages": 2})
+        time.sleep(0.1)
+        untimed.call("intake", "s", "p", {"goal": "Mark the essays.", "pages": 2})
+        self.assertEqual(untimed.name, "gemini")  # no limit unless one is set
 
 
 # ---- the web server the dashboard talks to ---------------------------------------------------

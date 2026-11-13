@@ -371,7 +371,7 @@ if __name__ == "__main__":
                          "Close it, or set PORT=8001 in .env.")
     backup = getattr(llm, "backup", None)
     print(f"LabLess on http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}  (LLM: {llm.name}, {llm.model}"
-          + (f"; {backup.name}, {backup.model} if Gemini is busy)" if backup else ")"))
+          + (f"; then {backup.name}, {backup.model}, if it cannot answer)" if backup else ")"))
     if llm.name == "mock":
         print("No GEMINI_API_KEY or OPENROUTER_API_KEY found: running in offline mock mode. Put a key in .env for real marking.")
     print("Press Ctrl+C to stop.", flush=True)

@@ -22,6 +22,9 @@ const SERVICE = { gemini: "Gemini", openrouter: "OpenRouter" };
 
 /** Which model is answering. OpenRouter's router names the model it picked, which can differ from the one asked for. */
 function llmTitle(llm) {
+  if (llm.name === "mock" && llm.switched) {
+    return "The live model could not answer, so the offline demo marker finished this run. The live log says why.";
+  }
   if (llm.name === "mock") {
     return "No API key was found, so marks come from simple text heuristics. Add a Gemini or OpenRouter key to .env for real marking.";
   }

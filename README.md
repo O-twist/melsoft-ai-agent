@@ -45,7 +45,7 @@ For real marking, put a key in `.env` (do not commit that file):
 - `GEMINI_API_KEY`, from Google AI Studio, and/or
 - `OPENROUTER_API_KEY`, from openrouter.ai. By default it uses `openrouter/free`. Set `OPENROUTER_MODEL` to pin one model, and `OPENROUTER_VISION_MODEL` for the model that reads photos.
 
-With both keys, Gemini does the work. If Gemini is busy, unreachable or refuses the request, OpenRouter takes over for the rest of that run. Week 2 and the Windows proof check never call a model: they stay deterministic.
+With both keys, Gemini does the work. If Gemini is busy, unreachable or refuses the request, OpenRouter takes over for the rest of that run. If no live model can answer, the offline demo marker finishes the run and the live log says so, so a run is never lost to a busy model. Week 2 and the Windows proof check never call a model: they stay deterministic.
 
 Copy `.env.example` to `.env` if you want a local file for those keys. Leave the values blank to stay on the offline demo. Do not commit `.env`.
 

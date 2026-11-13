@@ -101,7 +101,8 @@ class Run:
                 "corrections": self.corrections(),
                 "events": self.events[max(0, since):], "next": len(self.events),
                 "llm": {"name": self.llm.name, "model": self.llm.model, "calls": self.llm.calls,
-                        "served": getattr(self.llm, "served", None), "backup": getattr(self.llm, "standby", None)},
+                        "served": getattr(self.llm, "served", None), "backup": getattr(self.llm, "standby", None),
+                        "switched": bool(getattr(self.llm, "switched", None))},
                 "where": self.where,
                 "elapsed": round((self.ended or now) - self.started), "t": round(now - self.started, 1),
             }
