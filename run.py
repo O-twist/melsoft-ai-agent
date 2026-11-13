@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from app import classes, ingest, story, tools
+from app import classes, ingest, risk, story, tools
 from app.llm import make_llm
 from app.orchestrator import AGENTS, Run
 
@@ -93,7 +93,11 @@ class Handler(BaseHTTPRequestHandler):
                 since = parse_qs(url.query).get("since", ["0"])[0]
                 state = run.snapshot(int(since) if since.isdigit() else 0) if run else idle_state()
                 state["features"] = {"practical": practical_lab()}
+                state["risk"] = self._risk_board(run, state.get("subs") if run else None)
                 return self._send(200, state)
+            if url.path == "/api/risk":
+                run = current["run"]
+                return self._send(200, self._risk_board(run, run.subs if run else None))
             if url.path == "/api/file":
                 return self._download(parse_qs(url.query).get("name", [""])[0])
             if url.path == "/api/corrections.md":
@@ -120,6 +124,16 @@ class Handler(BaseHTTPRequestHandler):
             pass  # the browser went away
         except Exception as e:  # for example a class list or rubric that cannot be read
             self._send(500, {"error": f"{type(e).__name__}: {e}"})
+
+    def _risk_board(self, run, overlay):
+        """Planner risk scores. A failure here must not take the rest of the dashboard down."""
+        try:
+            if run:
+                return risk.assess(run.data_dir, overlay=overlay, assessment=run.assessment,
+                                   live_dir=run.live_attempts or live_attempts())
+            return risk.assess(DATA, live_dir=live_attempts())
+        except Exception as exc:
+            return {"ok": False, "learners": [], "counts": {}, "error": f"{type(exc).__name__}: {exc}"}
 
     def _download(self, name):
         """Hand over a file the current run wrote (mark sheet, class report, catch-up plans, lesson plan). Only files the run recorded."""

@@ -40,8 +40,8 @@ export default function TopBar({ llm, status, elapsed, offline, theme, onToggleT
         <div className="brand">
           <span className="brand-mark"><Icon name="logo" size={22} strokeWidth="2.8" /></span>
           <div className="brand-text">
-            <strong>Marking Colleague</strong>
-            <span>A team of AI agents that marks, checks its own marks, and delivers</span>
+            <strong>Colleague Zero</strong>
+            <span>Matric Rescue · an AI teaching colleague</span>
           </div>
         </div>
         <div className="topbar-right">

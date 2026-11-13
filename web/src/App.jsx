@@ -23,6 +23,8 @@ import PCAssembly from "./components/PCAssembly.jsx";
 import CorrectionsPanel from "./components/CorrectionsPanel.jsx";
 import ClassUpload from "./components/ClassUpload.jsx";
 import DetailDrawer from "./components/DetailDrawer.jsx";
+import RiskBoard from "./components/RiskBoard.jsx";
+import ScoreReport from "./components/ScoreReport.jsx";
 
 const DOWNLOADS = [
   { name: "marks.csv", label: "Mark sheet (CSV)" },
@@ -61,6 +63,9 @@ export default function App() {
   const [mine, setMine] = useState(null); // the teacher's own class, once uploaded and checked
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [view, setView] = useState("board"); // landing is the at-risk list; the marking desk stays mounted
+  const [focusId, setFocusId] = useState(null);
+  const [notice, setNotice] = useState("");
   const closeDrawer = useCallback(() => setOpenId(null), []);
 
   // Joining a run that is already under way (a reload, or a second window): show the goal it was given.
@@ -102,6 +107,44 @@ export default function App() {
     }
   }
 
+  function openReport(id) {
+    setFocusId(id);
+    setView("report");
+  }
+
+  async function rescue(row) {
+    const practicalOn = Boolean(state.features?.practical) && row.practical?.in_class;
+    const theoryPct = row.theory?.marked ? row.theory.percent : 0;
+    const practicalPct = row.practical?.marked ? row.practical.percent : 0;
+    const which = practicalOn && practicalPct < theoryPct ? "practical" : "essay";
+    const existing = (state.support?.learners || []).find((entry) => entry.id === row.id);
+    if (existing && (state.assessment === which || state.status === "done")) {
+      setView("desk");
+      setOpenId(row.id);
+      return;
+    }
+    if (running) {
+      setView("desk");
+      return;
+    }
+    const base = which === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL;
+    const goalText = `${row.learner} needs a rescue plan. ${base} Tell me who is falling behind, with a catch-up plan for each, and draft a 45-minute lesson on the class's weakest area with exercises.`;
+    setAssessment(which);
+    setGoal(goalText);
+    setError("");
+    setNotice(`Rescue plan started for ${row.learner}. The Coach and the Designer are on this run.`);
+    try {
+      const pages = which === "essay" && scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((page) => page.id) } : null;
+      await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
+      refresh();
+    } catch (e) {
+      setNotice("");
+      setError(e.message);
+    }
+  }
+
+  const high = state.risk?.counts?.High;
+
   return (
     <>
       <TopBar
@@ -113,25 +156,61 @@ export default function App() {
         onToggleTheme={toggleTheme}
       />
 
-      <main className="page">
-        {(offline || problem) && (
-          <div className="banner" role="status">
-            <Disc tone="serious" icon="alert" />
-            <div>
-              <b>{problem ? "The server reported a problem." : "Lost contact with the server."}</b>{" "}
-              {problem || "Showing the last thing it sent. This page reconnects by itself."}
-            </div>
-          </div>
-        )}
-        {failure && (
-          <div className="banner banner-critical" role="alert">
-            <Disc tone="critical" icon="alert" />
-            <div>
-              <b>The run stopped before it finished.</b> {failure.msg.replace(/^Run stopped:\s*/, "")}
-            </div>
-          </div>
-        )}
+      <nav className="view-nav no-print" aria-label="Views">
+        <div className="view-nav-in">
+          {[
+            ["board", "Learners at risk", high ? `${high} high` : null],
+            ["report", "Score reports", null],
+            ["desk", "Marking desk", null],
+          ].map(([key, label, extra]) => (
+            <button
+              key={key}
+              type="button"
+              className={view === key ? "on" : ""}
+              aria-current={view === key ? "page" : undefined}
+              onClick={() => setView(key)}
+            >
+              {label}
+              {extra && <span className="nav-count">{extra}</span>}
+            </button>
+          ))}
+        </div>
+      </nav>
 
+      {(offline || problem || failure) && (
+        <div className="page page-tight no-print">
+          {(offline || problem) && (
+            <div className="banner" role="status">
+              <Disc tone="serious" icon="alert" />
+              <div>
+                <b>{problem ? "The server reported a problem." : "Lost contact with the server."}</b>{" "}
+                {problem || "Showing the last thing it sent. This page reconnects by itself."}
+              </div>
+            </div>
+          )}
+          {failure && (
+            <div className="banner banner-critical" role="alert">
+              <Disc tone="critical" icon="alert" />
+              <div>
+                <b>The run stopped before it finished.</b> {failure.msg.replace(/^Run stopped:\s*/, "")}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {view === "board" && (
+        <div className="page no-print">
+          <RiskBoard state={state} onReport={openReport} onRescue={rescue} notice={notice} error={error} />
+        </div>
+      )}
+      {view === "report" && (
+        <div className="page">
+          <ScoreReport risk={state.risk} focusId={focusId} />
+        </div>
+      )}
+
+      <main className="page" hidden={view !== "desk"}>
         <GoalBar
           goal={goal}
           onGoal={setGoal}
