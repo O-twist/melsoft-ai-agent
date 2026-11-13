@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { fileUrl, heldWeek, holdWeek, resetWeek2, runWeek2, startRun, useRun } from "./api.js";
-import { useTheme } from "./theme.js";
 import Icon from "./components/Icon.jsx";
 import { Disc } from "./components/Badge.jsx";
 import TopBar from "./components/TopBar.jsx";
@@ -26,12 +25,40 @@ import CorrectionsPanel from "./components/CorrectionsPanel.jsx";
 import ClassUpload from "./components/ClassUpload.jsx";
 import DetailDrawer from "./components/DetailDrawer.jsx";
 import RiskBoard from "./components/RiskBoard.jsx";
+import LoopStatus from "./components/LoopStatus.jsx";
 import ScoreReport from "./components/ScoreReport.jsx";
 
 const DOWNLOADS = [
   { name: "marks.csv", label: "Mark sheet (CSV)" },
   { name: "class_report.md", label: "Class report" },
 ];
+
+/**
+ * Bring a section to the top of the window and keep it there while the page settles. The lab's pictures, the 3D
+ * model and the simulator finish loading after the scroll starts and push the target away, so aim again until
+ * it holds still. The first touch or wheel movement hands the page back to the person using it.
+ */
+function settleOn(id, forMs = 3500) {
+  const target = document.getElementById(id);
+  if (!target) return undefined;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  const began = Date.now();
+  const stop = () => {
+    clearInterval(timer);
+    window.removeEventListener("wheel", stop);
+    window.removeEventListener("touchstart", stop);
+  };
+  const timer = setInterval(() => {
+    const age = Date.now() - began;
+    if (age > forMs) return stop();
+    const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+    if (age > 700 && Math.abs(target.getBoundingClientRect().top - margin) > 24) target.scrollIntoView({ behavior: "auto", block: "start" });
+    return undefined;
+  }, 250);
+  window.addEventListener("wheel", stop, { passive: true });
+  window.addEventListener("touchstart", stop, { passive: true });
+  return stop;
+}
 
 function Splash({ offline, problem }) {
   return (
@@ -56,7 +83,6 @@ function Splash({ offline, problem }) {
 
 export default function App() {
   const { state, events, offline, problem, refresh } = useRun();
-  const [theme, toggleTheme] = useTheme();
   const [goal, setGoal] = useState(DEFAULT_GOAL);
   const [injectFault, setInjectFault] = useState(false);
   const [scripts, setScripts] = useState(null); // photographed pages to read: { batch, pages } in reading order
@@ -88,7 +114,7 @@ export default function App() {
   useEffect(() => {
     if (!station) return;
     const id = station.kind === "windows" ? "windows-station" : station.kind === "model" ? "part-viewer" : "virtual-lab";
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    return settleOn(id);
   }, [station]);
 
   if (!state) return <Splash offline={offline} problem={problem} />;
@@ -114,7 +140,7 @@ export default function App() {
       await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null);
       refresh();
       // Bring the progress, the team and the log into view: from here on the goal box is not the interesting part.
-      document.getElementById("progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      settleOn("loop-status");
     } catch (e) {
       setError(e.message);
     }
@@ -229,8 +255,6 @@ export default function App() {
         status={state.status}
         elapsed={state.elapsed}
         offline={offline}
-        theme={theme}
-        onToggleTheme={toggleTheme}
       />
 
       {(offline || problem || failure) && (
@@ -320,6 +344,16 @@ export default function App() {
             running={running}
           />
         )}
+
+        <section className="card" id="loop-status">
+          <header className="card-head">
+            <div>
+              <h2>The loop</h2>
+              <p>Plan → Do → Check → Correct → Deliver. Anything that fails a check goes back once, then to the teacher.</p>
+            </div>
+          </header>
+          <LoopStatus state={state} />
+        </section>
 
         <StatTiles stats={state.stats} subs={state.subs} plan={state.plan} rubric={state.rubric} />
 

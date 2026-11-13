@@ -34,9 +34,8 @@ function llmTitle(llm) {
   return parts.join(" ");
 }
 
-export default function TopBar({ llm, status, elapsed, offline, theme, onToggleTheme }) {
+export default function TopBar({ llm, status, elapsed, offline }) {
   const mock = llm.name === "mock";
-  const other = theme === "dark" ? "light" : "dark";
   return (
     <header className="topbar">
       <div className="topbar-in">
@@ -58,9 +57,6 @@ export default function TopBar({ llm, status, elapsed, offline, theme, onToggleT
             )}
           </span>
           <RunState status={status} elapsed={elapsed} offline={offline} />
-          <button type="button" className="icon-btn" onClick={onToggleTheme} aria-label={`Switch to ${other} theme`} title={`Switch to ${other} theme`}>
-            <Icon name={theme === "dark" ? "sun" : "moon"} size={17} />
-          </button>
         </div>
       </div>
     </header>

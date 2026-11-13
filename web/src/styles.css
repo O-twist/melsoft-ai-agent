@@ -135,10 +135,10 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 /* ---------- top bar ---------- */
 .topbar {
   position: sticky; top: 0; z-index: 20;
-  background: transparent;
+  background: var(--page);
 }
 .topbar-in {
-  max-width: 1100px; margin: 0 auto; padding: 16px 20px 0;
+  max-width: 1100px; margin: 0 auto; padding: 12px 20px 10px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
 }
 .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
@@ -803,7 +803,7 @@ details[open] > summary .chev { transform: rotate(90deg); }
   .dock {
     position: sticky; top: 0; left: auto; bottom: auto; transform: none;
     flex-direction: column; align-items: stretch; width: auto; max-width: none; height: 100vh;
-    border-radius: 0; box-shadow: none; padding: 28px 16px; gap: 6px;
+    border-radius: 0; box-shadow: none; padding: 28px 16px; gap: 6px; justify-content: flex-start;
     border-right: 1px solid var(--grid);
   }
   .dock-brand { display: block; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; font-size: 11px; color: #8B91A3; padding: 8px 12px 18px; }
@@ -834,7 +834,7 @@ details[open] > summary .chev { transform: rotate(90deg); }
 .loop { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; list-style: none; margin: 0; padding: 0; }
 .loop-step {
   display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface);
-  border: 1px solid var(--border); position: relative;
+  border: 1px solid var(--border); position: relative; align-content: start;
 }
 .loop-mark { width: 10px; height: 10px; border-radius: 50%; background: var(--axis); }
 .loop-name { font-weight: 700; }
@@ -988,6 +988,7 @@ details[open] > summary .chev { transform: rotate(90deg); }
 .loop.compact .loop-step {
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   padding: 0; background: transparent; border: 0; border-radius: 0; position: relative;
+  flex: 1 1 0; min-width: 0;
 }
 .loop.compact .loop-mark { width: 8px; height: 8px; background: rgba(255,255,255,0.28); }
 .loop.compact .loop-step.is-done .loop-mark,
@@ -998,9 +999,10 @@ details[open] > summary .chev { transform: rotate(90deg); }
 .loop.compact .loop-step.is-working .loop-name,
 .loop.compact .loop-step.is-clear .loop-name { color: #fff; }
 .loop.compact .loop-line {
-  position: absolute; top: 4px; left: 18px; width: 16px; height: 1px; background: rgba(255,255,255,0.22);
+  position: absolute; top: 4px; left: calc(50% + 10px); width: calc(100% - 20px); height: 1px; background: rgba(255,255,255,0.22);
 }
 .page { padding-bottom: 128px; }
+#loop-status, #virtual-lab, #part-viewer, #windows-station, #corrections { scroll-margin-top: 84px; }
 .dock { z-index: 40; }
 .ice-card {
   margin-top: 16px; padding: 18px 16px 16px; border-radius: 24px;
