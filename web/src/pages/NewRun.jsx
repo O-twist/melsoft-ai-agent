@@ -61,10 +61,15 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
   const useScripts = kind === "essay" && withScripts && uploads;
   const team = likelyTeam(goal, useScripts && (scripts?.pages?.length || test.sample));
 
+  const briefFor = (key) => {
+    const o = options(kind).find((x) => x.key === key);
+    if (!o || o.key === "own") return null;
+    return useScripts && o.key !== "marks" ? `Read the photographed handwritten scripts first, then ${o.goal[0].toLowerCase()}${o.goal.slice(1)}` : o.goal;
+  };
   useEffect(() => {
-    const o = options(kind).find((x) => x.key === choice);
-    if (o && o.key !== "own") setGoal(useScripts && o.key !== "marks" ? `Read the photographed handwritten scripts first, then ${o.goal[0].toLowerCase()}${o.goal.slice(1)}` : o.goal);
-  }, [kind, choice, useScripts]);
+    const next = briefFor(choice);
+    if (next) setGoal(next);
+  }, [kind, useScripts]);
 
   async function go() {
     setBusy(true);
@@ -161,7 +166,7 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
                 <h2 style={{ fontSize: 15, fontWeight: 600, margin: "4px 0 10px" }}>What should your colleague do?</h2>
                 <div className="l-opts">
                   {opts.map((o) => (
-                    <button type="button" key={o.key} className={`l-opt ${choice === o.key ? "on" : ""}`} onClick={() => { setChoice(o.key); if (o.key === "own") setGoal(""); }} aria-pressed={choice === o.key}>
+                    <button type="button" key={o.key} className={`l-opt ${choice === o.key ? "on" : ""}`} onClick={() => { setChoice(o.key); setGoal(o.key === "own" ? "" : briefFor(o.key)); }} aria-pressed={choice === o.key}>
                       <span className="radio" /><span><b>{o.title}</b><small>{o.text}</small></span>
                     </button>
                   ))}

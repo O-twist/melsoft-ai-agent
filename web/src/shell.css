@@ -216,3 +216,5 @@ body:has(.l-app) { background: #F7F8FA; }
   .l-app { display: block; height: auto; overflow: visible; background: #fff; }
   .l-content { overflow: visible; padding: 0; }
 }
+
+.l-app .win-closed .btn { background: #fff; color: #041B3A; border-color: #fff; }
