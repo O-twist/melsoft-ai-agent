@@ -32,6 +32,7 @@ class Run:
         # record: keep a small picture of the run at every log line, so a run that finished inside one web
         # request (a serverless deployment) can be played back in the browser step by step.
         self.record, self.frames = record, []
+        self.owner = None  # the teacher who started the run (None for a guest, or when accounts are off)
         # What is being marked: the essays (the default), or the PC assembly practical's attempt logs.
         self.assessment = assessment if assessment in tools.RUBRIC_FILES else "essay"
         self.live_attempts = live_attempts  # attempts recorded in the dashboard's virtual lab, which replace the files

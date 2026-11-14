@@ -109,6 +109,13 @@ export async function sendReset(email) {
 
 export async function signOut() {
   const token = session?.access_token;
+  try {  // the run and the Week 2 result this tab was holding belong to the teacher who is leaving
+    sessionStorage.removeItem("lablest.run");
+    sessionStorage.removeItem("lablest.week2");
+    sessionStorage.removeItem("lablest.guest");
+  } catch {
+    // nothing was stored
+  }
   save(null);
   if (token) call("logout", {}, token).catch(() => {});
 }

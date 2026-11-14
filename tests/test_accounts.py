@@ -96,6 +96,25 @@ class Accounts(unittest.TestCase):
         self.assertTrue(self.store.seen_auth)
         self.assertTrue(all(h in (f"Bearer {a}", f"Bearer {b}") for h in self.store.seen_auth))
 
+    def test_a_run_is_seen_only_by_the_teacher_who_started_it(self):
+        a = self.teacher("d@school.example", "Ms D")
+        b = self.teacher("e@school.example", "Mr E")
+        code, _ = self.call("/api/run", {"goal": "Mark the essays and send every learner feedback."}, token=a)
+        self.assertEqual(code, 200)
+        run = server.current["run"]
+        run.work.acquire()  # wait for it to finish
+        run.work.release()
+        self.assertEqual(self.call("/api/state", token=a)[1]["id"], run.id)
+        for other in (b, None):  # another teacher, and a guest, see an empty desk
+            state = self.call("/api/state", token=other)[1]
+            self.assertEqual((state["id"], state["status"]), (None, "idle"))
+            self.assertEqual(self.call("/api/resolve", {"id": "E01", "choice": "marker"}, token=other)[0], 404)
+        with urllib.request.urlopen(urllib.request.Request(f"{self.base}/api/file?name=marks.csv", headers={"Authorization": f"Bearer {a}"})) as r:
+            self.assertEqual(r.status, 200)
+        with self.assertRaises(urllib.error.HTTPError):
+            urllib.request.urlopen(urllib.request.Request(f"{self.base}/api/file?name=marks.csv", headers={"Authorization": f"Bearer {b}"}))
+        server.current["run"] = None
+
     def test_saving_the_same_run_twice_keeps_one_row(self):
         a = self.teacher("c@school.example", "Ms C")
         for marked in (5, 11):

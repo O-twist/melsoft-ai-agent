@@ -160,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/me":
                 return self._account(lambda token: accounts.me(token))
             if url.path == "/api/state":
-                run = current["run"]
+                run = self._own_run()
                 since = parse_qs(url.query).get("since", ["0"])[0]
                 state = run.snapshot(int(since) if since.isdigit() else 0) if run else idle_state()
                 state["features"] = features()
@@ -168,12 +168,12 @@ class Handler(BaseHTTPRequestHandler):
                 state["week2"] = current.get("week2") or store.load_week()
                 return self._send(200, state)
             if url.path == "/api/risk":
-                run = current["run"]
+                run = self._own_run()
                 return self._send(200, self._risk_board(run, run.subs if run else None))
             if url.path == "/api/file":
                 return self._download(parse_qs(url.query).get("name", [""])[0])
             if url.path == "/api/corrections.md":
-                run = current["run"]
+                run = self._own_run()
                 if not run:
                     return self._send(404, {"error": "not found"})
                 return self._send(200, story.to_markdown(run.corrections()).encode(), "text/markdown; charset=utf-8",
@@ -198,6 +198,25 @@ class Handler(BaseHTTPRequestHandler):
             pass  # the browser went away
         except Exception as e:  # for example a class list or rubric that cannot be read
             self._send(500, {"error": f"{type(e).__name__}: {e}"})
+
+    def _requester(self):
+        """The signed-in teacher's id, or None for a guest or when accounts are off."""
+        if not accounts.settings():
+            return None
+        token = accounts.token_from(self.headers)
+        if not token:
+            return None
+        try:
+            return accounts.user_for(token)["id"]
+        except accounts.AuthError:
+            return None
+
+    def _own_run(self):
+        """The current run, only for the teacher who started it (guests see only guests' runs)."""
+        run = current["run"]
+        if run is None or getattr(run, "owner", None) != self._requester():
+            return None
+        return run
 
     def _account(self, work):
         """Run one account call as the signed-in teacher. A bad token is a 401; a database problem a 502."""
@@ -228,7 +247,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _download(self, name):
         """Hand over a file the current run wrote (mark sheet, class report, catch-up plans, lesson plan). Only files the run recorded."""
-        run = current["run"]
+        run = self._own_run()
         if not run or name not in run.files:
             return self._send(404, {"error": "not found"})
         ctype = DOWNLOADS.get(Path(name).suffix, "application/octet-stream")
@@ -312,7 +331,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(200, {"ok": True, "saved": round(time.time()), "log": tools.render_attempt(attempt, rubric)})
 
     def _class_dir(self):
-        run = current["run"]
+        run = self._own_run()
         return run.data_dir if run else DATA
 
     def _week2(self, body):
@@ -372,8 +391,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._save_windows(body)
             if url.path == "/api/run":
                 run = current["run"]
-                if run and run.status == "running":
-                    return self._send(409, {"error": "A run is already in progress."})
+                owner = self._requester()
+                if run and run.status == "running" and not serverless():
+                    return self._send(409, {"error": "A run is already in progress." if getattr(run, "owner", None) == owner else
+                                            "Another teacher's run is in progress on this computer. Try again in a minute."})
                 goal = str(body.get("goal") or "").strip()
                 if not goal:
                     return self._send(400, {"error": "Give the colleague a goal."})
@@ -401,15 +422,17 @@ class Handler(BaseHTTPRequestHandler):
                 if serverless():
                     run = Run(request_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
                               assessment=assessment, live_attempts=live_attempts(), record=True)
+                    run.owner = owner
                     current["run"] = run
                     run._guarded()  # the whole loop, inside this request
                     return self._send(200, {"ok": True, "run": run.recording()})
                 current["run"] = Run(make_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
                                      pages=pages, batch=batch, inject_ocr_fault=bool(body.get("inject_ocr_fault")),
                                      assessment=assessment, live_attempts=live_attempts())
+                current["run"].owner = owner
                 current["run"].start()
                 return self._send(200, {"ok": True})
-            if url.path == "/api/resolve" and current["run"]:
+            if url.path == "/api/resolve" and self._own_run():
                 if body.get("kind") == "script":
                     ok = current["run"].resolve_script(str(body.get("id")), str(body.get("choice")), body.get("learner") or None)
                     return self._send(200, {"ok": True}) if ok else self._send(400, {"error": "That script is not waiting for that decision."})

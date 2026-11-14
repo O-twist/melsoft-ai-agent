@@ -40,8 +40,8 @@ export const RUNS_KEY = "lablest.history";
 export const SEEN_KEY = "lablest.seen";
 
 /** Keep a finished run in this browser's history (newest first, at most 30). */
-export function remember(summary) {
+export function remember(summary, key = RUNS_KEY) {
   if (!summary?.id) return;
-  const list = read(RUNS_KEY, []).filter((r) => r.id !== summary.id);
-  write(RUNS_KEY, [summary, ...list].slice(0, 30));
+  const list = read(key, []).filter((r) => r.id !== summary.id);
+  write(key, [summary, ...list].slice(0, 30));
 }

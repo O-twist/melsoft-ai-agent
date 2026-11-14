@@ -49,7 +49,8 @@ function Workspace({ auth }) {
   const [mine, setMine] = useState(null);
   const [scripts, setScripts] = useState(null);
   const [test] = usePref(TEST_KEY, TEST_OFF);
-  const [history] = usePref(RUNS_KEY, []);
+  const runsKey = `${RUNS_KEY}.${auth.session?.user?.id || "guest"}`; // each teacher's history is their own
+  const [history] = usePref(runsKey, []);
   const [drawer, setDrawer] = useState(null); // { id, tab }
   const [ask, setAsk] = useState(null); // a learner whose catch-up plan run is waiting for a yes
   const [busy, setBusy] = useState(false);
@@ -88,7 +89,7 @@ function Workspace({ auth }) {
   useEffect(() => {
     if (!state?.id || (status !== "done" && status !== "failed")) return;
     const summary = runSummary(state);
-    remember(summary);
+    remember(summary, runsKey);
     if (uid) saveRunSummary(summary);
     const who = rescueFor.current;
     if (who && who.after !== state.id) {
