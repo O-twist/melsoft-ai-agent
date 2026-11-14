@@ -270,12 +270,12 @@ class WebApi(unittest.TestCase):
 
     def test_the_practical_is_offered_behind_a_flag(self):
         idle = self.request("/api/state")[1]
-        self.assertEqual((idle["features"], idle["assessment"]), ({"practical": True}, "essay"))
+        self.assertEqual((idle["features"]["practical"], idle["assessment"]), (True, "essay"))
         self.assertEqual(self.request("/api/run", {"goal": GOAL, "assessment": "poetry"})[0], 400)
         code, out = self.request("/api/run", {"goal": GOAL, "assessment": "practical", "scripts": {"batch": "abc", "order": []}})
         self.assertEqual((code, "Photographed scripts are essays" in out["error"]), (400, True))
         with mock.patch.dict(os.environ, {"PRACTICAL_LAB": "0"}):
-            self.assertEqual(self.request("/api/state")[1]["features"], {"practical": False})
+            self.assertEqual(self.request("/api/state")[1]["features"]["practical"], False)
             self.assertEqual(self.request("/api/run", {"goal": GOAL, "assessment": "practical"})[0], 400)
 
         self.assertEqual(self.request("/api/run", {"goal": GOAL, "assessment": "practical", "inject_fault": True}), (200, {"ok": True}))

@@ -1,0 +1,3 @@
+# LabLess uses the Python standard library only.
+# Do not add Flask, FastAPI or Django here. A framework preset would take over
+# the deployment and the Vite site in web/dist would no longer be the frontend.

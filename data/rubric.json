@@ -1,6 +1,6 @@
 {
-  "title": "Grade 10 English essay rubric (CAPS-style, 50 marks)",
-  "task": "Write an essay of 200-250 words on the topic: 'Technology has done more good than harm for young South Africans.' Discuss.",
+  "title": "Grade 12 CAT theory paper (CAPS-style, 50 marks)",
+  "task": "Write an essay of 200-250 words on the topic: 'Technology has done more good than harm for young South Africans.' This is the Grade 12 CAT theory written response.",
   "min_words": 60,
   "support": {"below_pct": 50, "drop_points": 15, "criterion_below_pct": 40},
   "criteria": [

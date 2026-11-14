@@ -145,6 +145,7 @@ class Api(unittest.TestCase):
         cls._output, cls._run = server.OUTPUT, server.current["run"]
         server.OUTPUT = Path(tempfile.mkdtemp())
         server.current["run"] = None
+        server.current["week2"] = None
         cls.httpd = server.Server(("127.0.0.1", 0), server.Handler)
         threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
         cls.base = f"http://127.0.0.1:{cls.httpd.server_address[1]}"

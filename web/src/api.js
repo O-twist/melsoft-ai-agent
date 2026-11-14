@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { replayAt } from "./replay.js";
 
 async function post(url, body) {
   let res;
@@ -39,7 +40,44 @@ export async function uploadClass(files) {
 }
 export const resolveEssay = (id, choice) => post("/api/resolve", { id, choice });
 export const resolveScript = (id, choice, learner = null) => post("/api/resolve", { kind: "script", id, choice, learner });
-export const fileUrl = (name) => `/api/file?name=${encodeURIComponent(name)}`;
+
+const RUN_KEY = "lablest.run";
+const TEXT_TYPES = { csv: "text/csv", md: "text/markdown", txt: "text/plain" };
+let heldFiles = {}; // the text files of a run this browser is holding, by name
+
+/**
+ * A run that finished inside the request that started it (a serverless deployment). The browser keeps it,
+ * so the page can play it back and still show it when the next request lands on an instance with no memory.
+ */
+export function heldRun() {
+  try {
+    const run = JSON.parse(sessionStorage.getItem(RUN_KEY) || "null");
+    heldFiles = run?.file_texts || {};
+    return run && run.id ? run : null;
+  } catch {
+    return null;
+  }
+}
+
+export function holdRun(run) {
+  heldFiles = run?.file_texts || {};
+  try {
+    if (run) sessionStorage.setItem(RUN_KEY, JSON.stringify(run));
+    else sessionStorage.removeItem(RUN_KEY);
+  } catch {
+    // A full browser store must not stop the demo: the run still plays, it just will not survive a refresh.
+  }
+}
+
+/** Where to download one of the run's files: from the server, or from the run this browser is holding. */
+export const fileUrl = (name) => {
+  if (name in heldFiles) {
+    const type = TEXT_TYPES[name.split(".").pop()] || "text/plain";
+    return `data:${type};charset=utf-8,${encodeURIComponent(heldFiles[name])}`;
+  }
+  return `/api/file?name=${encodeURIComponent(name)}`;
+};
+export const correctionsUrl = () => ("corrections.md" in heldFiles ? fileUrl("corrections.md") : "/api/corrections.md");
 export const pageUrl = (batch, id) => `/api/page?batch=${encodeURIComponent(batch)}&id=${encodeURIComponent(id)}`;
 
 async function sendPages(url, form) {
@@ -64,6 +102,39 @@ export function uploadPages(files, batch = null) {
 
 /** Keep an attempt from the virtual lab for the next practical run. Returns { ok, saved, log }. */
 export const saveAttempt = (record) => post("/api/attempt", record);
+export const runWeek2 = (learnerId) => post("/api/week2", learnerId ? { learner: learnerId } : {});
+export const resetWeek2 = () => post("/api/week2", { reset: true });
+
+const WEEK_KEY = "lablest.week2";
+
+/** Week 2 from the last response, so a serverless instance without memory can still show it. */
+export function heldWeek() {
+  try {
+    const raw = sessionStorage.getItem(WEEK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && parsed.ok ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function holdWeek(result) {
+  try {
+    if (result && result.ok) sessionStorage.setItem(WEEK_KEY, JSON.stringify(result));
+    else sessionStorage.removeItem(WEEK_KEY);
+  } catch {
+    // A full browser store must not stop the demo.
+  }
+}
+export const submitWindows = (learnerId, answers) => post("/api/windows", { learner_id: learnerId, answers });
+
+/** The Windows checklist, without the answers the Reviewer is holding. */
+export async function windowsTasks() {
+  const res = await fetch("/api/windows");
+  if (!res.ok) throw new Error("Could not load the Windows tasks.");
+  return res.json();
+}
 
 /** The attempts recorded live in the virtual lab: [{ learner_id, saved }]. */
 export async function listLiveAttempts() {
@@ -89,6 +160,13 @@ export function useRun(intervalMs = 700) {
   const [problem, setProblem] = useState("");
   const cursor = useRef({ run: undefined, since: 0 });
   const inFlight = useRef(false);
+  // A run handed over whole by a serverless server: { run, began }. `began` is when playback started,
+  // or null once it has been shown to the end (and after a refresh, when there is nothing to play back).
+  const [held, setHeld] = useState(() => {
+    const run = heldRun();
+    return run ? { run, began: null } : null;
+  });
+  const [, setTick] = useState(0);
 
   const poll = useCallback(async () => {
     if (inFlight.current) return;
@@ -138,5 +216,26 @@ export function useRun(intervalMs = 700) {
     };
   }, [poll, intervalMs]);
 
-  return { state, events, offline, problem, refresh: poll };
+  /** Take over a run the server finished inside the request (or pass null to go back to polling for one). */
+  const adopt = useCallback((run) => {
+    holdRun(run || null);
+    setHeld(run ? { run, began: Date.now() } : null);
+  }, []);
+
+  // While a held run is playing back, redraw a few times a second so the loop and the log move.
+  const playing = Boolean(held?.began);
+  useEffect(() => {
+    if (!playing) return undefined;
+    const timer = setInterval(() => setTick((n) => n + 1), 150);
+    return () => clearInterval(timer);
+  }, [playing]);
+
+  if (state && held) {
+    const view = replayAt(held.run, held.began == null ? Infinity : (Date.now() - held.began) / 1000);
+    if (view.finished && held.began != null) setTimeout(() => setHeld((now) => (now && now.run === held.run ? { run: now.run, began: null } : now)), 0);
+    // The class, the risk scores and Week 2 still come from the server; the run itself comes from the recording.
+    return { state: { ...state, ...view.state }, events: view.events, offline, problem, refresh: poll, adopt };
+  }
+
+  return { state, events, offline, problem, refresh: poll, adopt };
 }

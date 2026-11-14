@@ -1,0 +1,32 @@
+{
+  "about": "Grade 12 CAT Windows station for the sample class. Percents are deterministic. The Reviewer notes are the check of each proof answer. Live answers saved from the dashboard replace a learner's row.",
+  "learners": {
+    "E01": {"S1": 100, "S2": 100, "S3": 100, "S4": 100},
+    "E02": {"S1": 100, "S2": 90, "S3": 100, "S4": 80},
+    "E03": {"S1": 100, "S2": 100, "S3": 90, "S4": 100},
+    "E04": {"S1": 90, "S2": 80, "S3": 90, "S4": 70},
+    "E05": {"S1": 100, "S2": 100, "S3": 100, "S4": 100},
+    "E06": {
+      "S1": {"percent": 40, "verdict": "partly", "answer": "rescue", "note": "The Reviewer found part of the S1 proof, not the full answer."},
+      "S2": {"percent": 30, "verdict": "disagreed", "answer": "2020", "note": "The Reviewer disagreed on S2. The proof does not match what the simulator shows."},
+      "S3": {"percent": 20, "verdict": "disagreed", "answer": "blue", "note": "The Reviewer disagreed on S3. The proof does not match what the simulator shows."},
+      "S4": {"percent": 0, "verdict": "no proof", "answer": "", "note": "The Reviewer could not check S4: no answer was given."}
+    },
+    "E07": {"S1": 100, "S2": 90, "S3": 100, "S4": 90},
+    "E08": {
+      "S1": {"percent": 0, "verdict": "no proof", "answer": "", "note": "The Reviewer could not check S1: no answer was given."},
+      "S2": {"percent": 0, "verdict": "no proof", "answer": "", "note": "The Reviewer could not check S2: no answer was given."},
+      "S3": {"percent": 0, "verdict": "no proof", "answer": "", "note": "The Reviewer could not check S3: no answer was given."},
+      "S4": {"percent": 0, "verdict": "no proof", "answer": "", "note": "The Reviewer could not check S4: no answer was given."}
+    },
+    "E09": {"S1": 100, "S2": 100, "S3": 100, "S4": 90},
+    "E10": {
+      "S1": {"percent": 100, "verdict": "agreed", "answer": "CAT Rescue", "note": "The Reviewer agreed on S1: the proof matches what the simulator shows."},
+      "S2": {"percent": 80, "verdict": "agreed", "answer": "Windows 11 Release", "note": "The Reviewer agreed on S2: the proof matches what the simulator shows."},
+      "S3": {"percent": 30, "verdict": "disagreed", "answer": "the blue one", "note": "The Reviewer disagreed on S3. The proof does not match what the simulator shows."},
+      "S4": {"percent": 14, "verdict": "disagreed", "answer": "8 GB", "note": "The Reviewer disagreed on S4. The proof does not match what the simulator shows."}
+    },
+    "E11": {"S1": 80, "S2": 70, "S3": 90, "S4": 80},
+    "E12": {"S1": 100, "S2": 100, "S3": 80, "S4": 100}
+  }
+}

@@ -3,7 +3,8 @@
 Every backend has call() for text and call_vision() for text with photos (the Clerk reading handwritten pages).
 
 With both keys set, Gemini is used first and OpenRouter takes over for the rest of the run if Gemini is
-busy, unreachable or refuses the request (see Fallback).
+busy, unreachable or refuses the request. If no live model can answer, the offline mock finishes the run
+(see Fallback).
 """
 import base64
 import http.client
@@ -21,6 +22,7 @@ API = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_MODEL = "gemini-3.8-flash"
 OPENROUTER_API = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "openrouter/free"  # OpenRouter's own router: picks a free model that is up
+HTTP_TIMEOUT = float(os.getenv("LLM_HTTP_TIMEOUT", "180"))  # seconds one request to a live model may take
 
 
 class LLMError(Exception):
@@ -70,7 +72,7 @@ class Gemini:
             method=method,
             headers={"x-goog-api-key": self.key, "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=180) as resp:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode())
 
     def _body(self, system, prompt, images=None):
@@ -226,8 +228,8 @@ class OpenRouter:
         req = urllib.request.Request(
             f"{self.api}/chat/completions", data=json.dumps(body).encode(), method="POST",
             headers={"Authorization": f"Bearer {self.key}", "Content-Type": "application/json",
-                     "X-Title": "Marking Colleague"})
-        with urllib.request.urlopen(req, timeout=180) as resp:
+                     "X-Title": "LabLess"})
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode())
 
     @staticmethod
@@ -310,17 +312,30 @@ class OpenRouter:
                     raise Busy(f"Cannot reach OpenRouter: {reason}")
 
 
-class Fallback:
-    """Gemini first. If it fails (busy, unreachable, key refused), OpenRouter answers for the rest of the run.
+SERVICE = {"gemini": "Gemini", "openrouter": "OpenRouter", "mock": "the offline demo marker"}
 
-    Each run gets a fresh Fallback, so the next run tries Gemini again.
+
+class Fallback:
+    """A chain of backends, tried in order: Gemini, then OpenRouter, then the offline demo marker.
+
+    When the one answering fails (busy, unreachable, key refused, no valid reply), the next takes over for the
+    rest of the run, so a run is never lost to a model that cannot answer. Each run gets a fresh Fallback, so
+    the next run tries the first backend again.
+
+    deadline: seconds a run may spend on live models. Once it has passed, the offline demo marker at the end
+    of the chain finishes the run. This keeps a run inside a serverless time limit. 0 means no limit.
     """
 
-    def __init__(self, primary, backup):
-        self.primary, self.backup = primary, backup
-        self.primary.delays = self.primary.delays[:2]  # with a backup ready, do not wait minutes for a busy Gemini
+    def __init__(self, primary, *others, deadline=None):
+        self.chain = [primary, *others]
+        self.primary, self.backup = primary, (others[0] if others else None)
+        for backend in self.chain[:-1]:  # with a backup ready, do not wait minutes for a busy service
+            if hasattr(backend, "delays"):
+                backend.delays = backend.delays[:2]
         self.active = primary
-        self.switched = None  # why the backup took over, once it has
+        self.switched = None  # why the next backend took over, once it has
+        self.deadline = float(os.getenv("LLM_DEADLINE", "0") or 0) if deadline is None else deadline
+        self._started = None
 
     @property
     def name(self):
@@ -332,7 +347,12 @@ class Fallback:
 
     @property
     def calls(self):
-        return self.primary.calls + self.backup.calls
+        return sum(backend.calls for backend in self.chain)
+
+    @property
+    def skipped(self):
+        """Seconds of pacing the offline marker left out (see Mock.instant)."""
+        return sum(getattr(backend, "skipped", 0.0) for backend in self.chain)
 
     @property
     def served(self):
@@ -341,8 +361,13 @@ class Fallback:
 
     @property
     def standby(self):
-        """The model waiting to take over, while Gemini is still answering."""
-        return self.backup.model if self.active is self.primary else None
+        """The live model waiting to take over, while the one before it is still answering."""
+        following = self._next()
+        return following.model if following is not None and following.name != "mock" else None
+
+    def _next(self):
+        at = self.chain.index(self.active)
+        return self.chain[at + 1] if at + 1 < len(self.chain) else None
 
     def call(self, task, system, prompt, data=None, log=None):
         return self._route("call", task, system, prompt, data=data, log=log)
@@ -350,14 +375,28 @@ class Fallback:
     def call_vision(self, task, system, prompt, images, data=None, log=None):
         return self._route("call_vision", task, system, prompt, images, data=data, log=log)
 
+    def _switch(self, to, why, say):
+        was = SERVICE.get(self.active.name, self.active.name)
+        self.active, self.switched = to, why
+        target = SERVICE.get(to.name, to.name) + ("" if to.name == "mock" else f" ({to.model})")
+        say(f"{was} could not answer ({why}). Switching to {target} for the rest of this run.")
+
     def _route(self, method, *args, **kw):
-        if self.active is self.primary:
+        say = kw.get("log") or (lambda msg: None)
+        if self._started is None:
+            self._started = time.time()
+        last = self.chain[-1]
+        if (self.deadline and self.active is not last and last.name == "mock"
+                and time.time() - self._started > self.deadline):
+            self._switch(last, f"the live models have had their {round(self.deadline)} seconds for this run", say)
+        while True:
             try:
-                return getattr(self.primary, method)(*args, **kw)
+                return getattr(self.active, method)(*args, **kw)
             except LLMError as e:
-                self.active, self.switched = self.backup, str(e)
-                (kw.get("log") or (lambda msg: None))(f"Gemini could not answer ({e}). Switching to OpenRouter ({self.backup.model}) for the rest of this run.")
-        return getattr(self.backup, method)(*args, **kw)
+                following = self._next()
+                if following is None:
+                    raise
+                self._switch(following, str(e), say)
 
 
 class Mock:
@@ -368,10 +407,17 @@ class Mock:
     def __init__(self):
         self.calls = 0
         self.delay = float(os.getenv("MOCK_DELAY", "0.7"))
+        # A run that has to finish inside one web request does not wait between steps. The pause each step
+        # would have taken is added up here instead, and the run's clock counts it, so the timeline reads the same.
+        self.instant = False
+        self.skipped = 0.0
 
     def call(self, task, system, prompt, data=None, log=None):
         self.calls += 1
-        time.sleep(self.delay)
+        if self.instant:
+            self.skipped += self.delay
+        else:
+            time.sleep(self.delay)
         return mock.respond(task, data or {})
 
     def call_vision(self, task, system, prompt, images, data=None, log=None):
@@ -380,14 +426,12 @@ class Mock:
 
 
 def make_llm():
-    """Gemini, OpenRouter, or both (Gemini first), depending on which keys are in .env. Neither: the offline mock."""
+    """Gemini, OpenRouter, or both (Gemini first), depending on which keys are in .env. Neither: the offline mock.
+
+    Whenever a live model is used, the offline mock stands behind it, so a run finishes even if every model fails.
+    """
     if os.getenv("MOCK", "") == "1":
         return Mock()
     gemini, openrouter = os.getenv("GEMINI_API_KEY", "").strip(), os.getenv("OPENROUTER_API_KEY", "").strip()
-    if gemini and openrouter:
-        return Fallback(Gemini(gemini), OpenRouter(openrouter))
-    if gemini:
-        return Gemini(gemini)
-    if openrouter:
-        return OpenRouter(openrouter)
-    return Mock()
+    live = ([Gemini(gemini)] if gemini else []) + ([OpenRouter(openrouter)] if openrouter else [])
+    return Fallback(*live, Mock()) if live else Mock()

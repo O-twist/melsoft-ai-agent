@@ -7,13 +7,29 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from app import classes, ingest, risk, story, tools
+from app import classes, ingest, risk, store, story, tools, week2
+from app import llm as llm_service
+from app import windows as windows_station
 from app.llm import make_llm
 from app.orchestrator import AGENTS, Run
 
 ROOT = Path(__file__).parent
 DATA = os.getenv("DATA_DIR", str(ROOT / "data"))
-OUTPUT = Path(os.getenv("OUTPUT_DIR", str(ROOT / "output")))
+
+
+def _output_dir():
+    """Live files. On Vercel only /tmp can be written; the demo class stays in data/."""
+    chosen = os.getenv("OUTPUT_DIR")
+    if chosen:
+        return Path(chosen)
+    if os.getenv("VERCEL"):
+        path = Path("/tmp/lablest-output")
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    return ROOT / "output"
+
+
+OUTPUT = _output_dir()
 DIST = ROOT / "web" / "dist"
 NOT_BUILT = (
     "<h1>Dashboard not built yet</h1><p>Run <code>npm install</code> and <code>npm run build</code> "
@@ -21,7 +37,37 @@ NOT_BUILT = (
 )
 mimetypes.add_type("model/gltf-binary", ".glb")  # the 3D model in the lesson view
 DOWNLOADS = {".csv": "text/csv", ".md": "text/markdown", ".pdf": "application/pdf", ".txt": "text/plain"}
-current = {"run": None}
+current = {"run": None, "week2": None}
+
+
+def serverless():
+    """True where a request cannot count on the next one reaching the same process (Vercel).
+
+    There a run cannot carry on in the background after the reply, and what one instance wrote to disk is
+    not there for the next. So the whole run happens inside the request that starts it, and the browser is
+    handed the finished run to play back. RUN_IN_REQUEST=1 turns the same behaviour on anywhere, for testing.
+    """
+    return bool(os.getenv("VERCEL")) or os.getenv("RUN_IN_REQUEST") == "1"
+
+
+def request_llm():
+    """The model for a run that must finish inside one request: nothing waits, and live models get a time limit."""
+    llm = make_llm()
+    for backend in getattr(llm, "chain", [llm]):
+        if backend.name == "mock":
+            backend.instant = True
+        else:
+            backend.delays = [2]  # one short retry, then the next backend
+    if hasattr(llm, "deadline") and not llm.deadline:
+        llm.deadline = float(os.getenv("RUN_SECONDS", "35"))
+    if not os.getenv("LLM_HTTP_TIMEOUT"):
+        llm_service.HTTP_TIMEOUT = 12
+    return llm
+
+
+def features():
+    """What this deployment can offer. Uploads need files that outlive a request, so they are local only."""
+    return {"practical": practical_lab(), "uploads": not serverless(), "replay": serverless()}
 
 
 def practical_lab():
@@ -32,6 +78,27 @@ def practical_lab():
 def live_attempts():
     """Where attempts done in the dashboard's virtual lab are kept, apart from the sample files in data/attempts."""
     return OUTPUT / "attempts"
+
+
+def live_windows():
+    """Proof answers from the Windows checklist, apart from the sample rows in data/windows.json."""
+    return OUTPUT / "windows"
+
+
+def merged_windows(data_dir):
+    """Sample station results, with a live checklist submission taking the place of that learner."""
+    found = risk._load_windows(data_dir, None)
+    folder = live_windows()
+    if not folder.is_dir():
+        return found
+    for path in sorted(folder.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and isinstance(data.get("outcomes"), dict):
+            found[str(data.get("learner_id") or path.stem)] = data["outcomes"]
+    return found
 
 
 def class_root():
@@ -92,8 +159,9 @@ class Handler(BaseHTTPRequestHandler):
                 run = current["run"]
                 since = parse_qs(url.query).get("since", ["0"])[0]
                 state = run.snapshot(int(since) if since.isdigit() else 0) if run else idle_state()
-                state["features"] = {"practical": practical_lab()}
+                state["features"] = features()
                 state["risk"] = self._risk_board(run, state.get("subs") if run else None)
+                state["week2"] = current.get("week2") or store.load_week()
                 return self._send(200, state)
             if url.path == "/api/risk":
                 run = current["run"]
@@ -110,6 +178,8 @@ class Handler(BaseHTTPRequestHandler):
                 folder = live_attempts()
                 rows = [{"learner_id": p.stem, "saved": round(p.stat().st_mtime)} for p in sorted(folder.glob("*.json"))] if folder.is_dir() else []
                 return self._send(200, {"attempts": rows})
+            if url.path == "/api/windows":
+                return self._send(200, {"tasks": windows_station.public_tasks()})
             if url.path == "/api/page":
                 q = parse_qs(url.query)
                 try:
@@ -129,11 +199,17 @@ class Handler(BaseHTTPRequestHandler):
         """Planner risk scores. A failure here must not take the rest of the dashboard down."""
         try:
             if run:
-                return risk.assess(run.data_dir, overlay=overlay, assessment=run.assessment,
-                                   live_dir=run.live_attempts or live_attempts())
-            return risk.assess(DATA, live_dir=live_attempts())
+                data_dir = run.data_dir
+                live = run.live_attempts or live_attempts()
+                board = risk.assess(data_dir, overlay=overlay, assessment=run.assessment,
+                                    live_dir=live, windows=merged_windows(data_dir))
+            else:
+                data_dir = DATA
+                board = risk.assess(DATA, live_dir=live_attempts(), windows=merged_windows(DATA))
         except Exception as exc:
             return {"ok": False, "learners": [], "counts": {}, "error": f"{type(exc).__name__}: {exc}"}
+        store.remember(board, data_dir)
+        return board
 
     def _download(self, name):
         """Hand over a file the current run wrote (mark sheet, class report, catch-up plans, lesson plan). Only files the run recorded."""
@@ -220,17 +296,60 @@ class Handler(BaseHTTPRequestHandler):
         (folder / f"{attempt['learner_id']}.json").write_text(json.dumps(attempt, indent=1) + "\n", encoding="utf-8")
         return self._send(200, {"ok": True, "saved": round(time.time()), "log": tools.render_attempt(attempt, rubric)})
 
+    def _class_dir(self):
+        run = current["run"]
+        return run.data_dir if run else DATA
+
+    def _week2(self, body):
+        """Simulate the rescue week and score the class again. Reset drops the comparison."""
+        if body.get("reset"):
+            current["week2"] = None
+            store.clear_week()
+            return self._send(200, {"ok": True})
+        data_dir = self._class_dir()
+        learner = str(body.get("learner") or "").strip() or None
+        # Week 2 is measured from the class as it was marked in Week 1. Builds and Windows proofs handed in
+        # from the lab since then are catch-up practice: they are part of the rescue week, not of its starting
+        # point, so they are left out here. That keeps the before and after the same every time it is run.
+        result = week2.project(data_dir, learner_id=learner)
+        if not result.get("ok"):
+            return self._send(400, {"error": result.get("error") or "Week 2 could not be scored."})
+        current["week2"] = result
+        store.remember_week(result, data_dir)
+        return self._send(200, result)
+
+    def _save_windows(self, body):
+        """The Reviewer checks the proof answers and keeps them for the risk score."""
+        data_dir = self._class_dir()
+        learner = str(body.get("learner_id") or "").strip()
+        known = {sub["id"] for sub in tools.load_submissions(data_dir)}
+        if learner not in known:
+            return self._send(400, {"error": "Choose a learner from the class list."})
+        answers = body.get("answers") if isinstance(body.get("answers"), dict) else {}
+        result = windows_station.review(answers, learner)
+        folder = live_windows()
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{learner}.json").write_text(json.dumps(result, indent=1) + "\n", encoding="utf-8")
+        return self._send(200, result)
+
     def do_POST(self):
         try:
             url = urlparse(self.path)
+            if url.path in ("/api/ingest", "/api/class") and serverless():
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))  # take the upload before refusing it
+                return self._send(400, {"error": "Uploads are switched off on this deployment. Run LabLess on a computer to use your own class or photographed scripts."})
             if url.path == "/api/ingest":
                 return self._ingest(parse_qs(url.query))
             if url.path == "/api/class":
                 return self._upload_class()
             body = self._body()
-            if self.path == "/api/attempt":
+            if url.path == "/api/attempt":
                 return self._save_attempt(body)
-            if self.path == "/api/run":
+            if url.path == "/api/week2":
+                return self._week2(body)
+            if url.path == "/api/windows":
+                return self._save_windows(body)
+            if url.path == "/api/run":
                 run = current["run"]
                 if run and run.status == "running":
                     return self._send(409, {"error": "A run is already in progress."})
@@ -258,12 +377,18 @@ class Handler(BaseHTTPRequestHandler):
                         pages = ingest.load_pages(uploads(), batch, order if isinstance(order, list) else None)
                     except ingest.IngestError as e:
                         return self._send(400, {"error": str(e)})
+                if serverless():
+                    run = Run(request_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
+                              assessment=assessment, live_attempts=live_attempts(), record=True)
+                    current["run"] = run
+                    run._guarded()  # the whole loop, inside this request
+                    return self._send(200, {"ok": True, "run": run.recording()})
                 current["run"] = Run(make_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
                                      pages=pages, batch=batch, inject_ocr_fault=bool(body.get("inject_ocr_fault")),
                                      assessment=assessment, live_attempts=live_attempts())
                 current["run"].start()
                 return self._send(200, {"ok": True})
-            if self.path == "/api/resolve" and current["run"]:
+            if url.path == "/api/resolve" and current["run"]:
                 if body.get("kind") == "script":
                     ok = current["run"].resolve_script(str(body.get("id")), str(body.get("choice")), body.get("learner") or None)
                     return self._send(200, {"ok": True}) if ok else self._send(400, {"error": "That script is not waiting for that decision."})
@@ -283,11 +408,11 @@ if __name__ == "__main__":
     try:
         server = Server((host, port), Handler)
     except OSError as e:
-        raise SystemExit(f"Cannot start on port {port}: {e}\nIs Marking Colleague already running in another window? "
+        raise SystemExit(f"Cannot start on port {port}: {e}\nIs LabLess already running in another window? "
                          "Close it, or set PORT=8001 in .env.")
     backup = getattr(llm, "backup", None)
-    print(f"Marking Colleague on http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}  (LLM: {llm.name}, {llm.model}"
-          + (f"; {backup.name}, {backup.model} if Gemini is busy)" if backup else ")"))
+    print(f"LabLess on http://{'localhost' if host in ('127.0.0.1', '0.0.0.0') else host}:{port}  (LLM: {llm.name}, {llm.model}"
+          + (f"; then {backup.name}, {backup.model}, if it cannot answer)" if backup else ")"))
     if llm.name == "mock":
         print("No GEMINI_API_KEY or OPENROUTER_API_KEY found: running in offline mock mode. Put a key in .env for real marking.")
     print("Press Ctrl+C to stop.", flush=True)

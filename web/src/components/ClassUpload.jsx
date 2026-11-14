@@ -38,7 +38,7 @@ export default function ClassUpload({ mine, onMine, running }) {
       <div className="ingest-head">
         <header className="card-head" style={{ marginBottom: 0 }}>
           <div>
-            <h2>Class <span className="h-note">{mine ? "your own" : "the sample Grade 10 class"}</span></h2>
+            <h2>Class <span className="h-note">{mine ? "your own" : "the sample Grade 12 CAT class"}</span></h2>
             <p>
               {mine
                 ? `${plural(mine.learners, "learner")}, ${plural(mine.essays, "essay")} matched, marked against ${mine.own_rubric ? "your rubric" : "the sample rubric"}: ${mine.rubric}.`

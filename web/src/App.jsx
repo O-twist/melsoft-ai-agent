@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { fileUrl, startRun, useRun } from "./api.js";
-import { useTheme } from "./theme.js";
+import { fileUrl, heldWeek, holdWeek, resetWeek2, runWeek2, startRun, useRun } from "./api.js";
 import Icon from "./components/Icon.jsx";
 import { Disc } from "./components/Badge.jsx";
 import TopBar from "./components/TopBar.jsx";
@@ -20,16 +19,46 @@ import ConsistencyCard from "./components/ConsistencyCard.jsx";
 import ScriptIngest from "./components/ScriptIngest.jsx";
 import IngestReview from "./components/IngestReview.jsx";
 import PCAssembly from "./components/PCAssembly.jsx";
+import WindowsStation from "./components/WindowsStation.jsx";
+import PartModels from "./components/PartModels.jsx";
 import CorrectionsPanel from "./components/CorrectionsPanel.jsx";
 import ClassUpload from "./components/ClassUpload.jsx";
 import DetailDrawer from "./components/DetailDrawer.jsx";
 import RiskBoard from "./components/RiskBoard.jsx";
+import LoopStatus from "./components/LoopStatus.jsx";
 import ScoreReport from "./components/ScoreReport.jsx";
 
 const DOWNLOADS = [
   { name: "marks.csv", label: "Mark sheet (CSV)" },
   { name: "class_report.md", label: "Class report" },
 ];
+
+/**
+ * Bring a section to the top of the window and keep it there while the page settles. The lab's pictures, the 3D
+ * model and the simulator finish loading after the scroll starts and push the target away, so aim again until
+ * it holds still. The first touch or wheel movement hands the page back to the person using it.
+ */
+function settleOn(id, forMs = 3500) {
+  const target = document.getElementById(id);
+  if (!target) return undefined;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  const began = Date.now();
+  const stop = () => {
+    clearInterval(timer);
+    window.removeEventListener("wheel", stop);
+    window.removeEventListener("touchstart", stop);
+  };
+  const timer = setInterval(() => {
+    const age = Date.now() - began;
+    if (age > forMs) return stop();
+    const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+    if (age > 700 && Math.abs(target.getBoundingClientRect().top - margin) > 24) target.scrollIntoView({ behavior: "auto", block: "start" });
+    return undefined;
+  }, 250);
+  window.addEventListener("wheel", stop, { passive: true });
+  window.addEventListener("touchstart", stop, { passive: true });
+  return stop;
+}
 
 function Splash({ offline, problem }) {
   return (
@@ -42,7 +71,7 @@ function Splash({ offline, problem }) {
         </>
       ) : offline ? (
         <>
-          <h1>Cannot reach Marking Colleague</h1>
+          <h1>Cannot reach LabLess</h1>
           <p>Start the server with <code>start.cmd</code> or <code>python run.py</code>. This page reconnects by itself.</p>
         </>
       ) : (
@@ -53,8 +82,7 @@ function Splash({ offline, problem }) {
 }
 
 export default function App() {
-  const { state, events, offline, problem, refresh } = useRun();
-  const [theme, toggleTheme] = useTheme();
+  const { state, events, offline, problem, refresh, adopt } = useRun();
   const [goal, setGoal] = useState(DEFAULT_GOAL);
   const [injectFault, setInjectFault] = useState(false);
   const [scripts, setScripts] = useState(null); // photographed pages to read: { batch, pages } in reading order
@@ -66,6 +94,10 @@ export default function App() {
   const [view, setView] = useState("board"); // landing is the at-risk list; the marking desk stays mounted
   const [focusId, setFocusId] = useState(null);
   const [notice, setNotice] = useState("");
+  const [weekHold, setWeekHold] = useState(heldWeek);
+  const [station, setStation] = useState(null);
+  const [partId, setPartId] = useState("");
+  const [rescueFor, setRescueFor] = useState(null); // the learner a rescue run was started for: { id, name, after: the run before it }
   const closeDrawer = useCallback(() => setOpenId(null), []);
 
   // Joining a run that is already under way (a reload, or a second window): show the goal it was given.
@@ -80,7 +112,37 @@ export default function App() {
     // Deliberately keyed on the run alone: this must not fire on every poll and undo the user's typing.
   }, [runId]);
 
+  useEffect(() => {
+    if (!station) return;
+    const id = station.kind === "windows" ? "windows-station" : station.kind === "model" ? "part-viewer" : "virtual-lab";
+    return settleOn(id);
+  }, [station]);
+
+  // A rescue run was started from the home screen: when it ends, open that learner's plan, or say why there is none.
+  const runStatus = state?.status;
+  useEffect(() => {
+    if (!rescueFor || !runId || runId === rescueFor.after || runStatus === "running") return;
+    setRescueFor(null);
+    if (runStatus !== "done") {
+      setNotice("");
+      return;
+    }
+    const entry = (state.support?.learners || []).find((e) => e.id === rescueFor.id);
+    if (entry?.status === "ready") {
+      setNotice(`Rescue plan ready for ${rescueFor.name}.`);
+      setView("desk");
+      setOpenId(rescueFor.id);
+    } else if (entry) {
+      setNotice(`The Coach's plan for ${rescueFor.name} failed its checks twice, so it is held for you rather than shown. The warning signs are on the marking desk.`);
+    } else {
+      setNotice(`The Coach found no warning sign in this work for ${rescueFor.name}, so there is no rescue plan to build. Their score report lists the next steps.`);
+    }
+    // Keyed on the run ending, not on every poll.
+  }, [runId, runStatus, rescueFor]);
+
   if (!state) return <Splash offline={offline} problem={problem} />;
+
+  const week2 = state.week2?.ok ? state.week2 : weekHold;
 
   const running = state.status === "running";
   const selected = state.subs.find((s) => s.id === openId);
@@ -91,6 +153,8 @@ export default function App() {
   const wantsSupport = Boolean(state.plan?.deliver.support);
   const wantsLesson = Boolean(state.plan?.deliver.lesson);
   const behind = (state.support?.learners || []).map((e) => e.id);
+  // Uploads need files that outlive a request, so a serverless deployment leaves those two cards out.
+  const uploads = state.features?.uploads !== false;
 
   async function start() {
     setError("");
@@ -98,10 +162,11 @@ export default function App() {
     try {
       const pages = scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((p) => p.id) } : null;
       const essays = assessment === "essay";
-      await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null);
+      const out = await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null);
+      adopt(out.run); // a serverless server hands the finished run back to be played here; a local one is polled
       refresh();
       // Bring the progress, the team and the log into view: from here on the goal box is not the interesting part.
-      document.getElementById("progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      settleOn("loop-status");
     } catch (e) {
       setError(e.message);
     }
@@ -112,13 +177,57 @@ export default function App() {
     setView("report");
   }
 
+  function openCatchUp(learner, link) {
+    setStation({ ...link, learnerId: learner.id, nonce: Date.now() });
+    if (link.kind === "model") setPartId(link.target);
+    if (link.kind !== "windows") setAssessment("practical");
+    setView("desk");
+  }
+
+  async function week(learnerId) {
+    setError("");
+    try {
+      const result = await runWeek2(learnerId || null);
+      if (result?.ok) {
+        holdWeek(result);
+        setWeekHold(result);
+      }
+      refresh();
+      setNotice(learnerId ? `Week 2 scored for ${learnerId}.` : "Week 2 scored for the class.");
+    } catch (e) {
+      setNotice("");
+      setError(e.message);
+    }
+  }
+
+  async function clearWeek() {
+    setError("");
+    try {
+      await resetWeek2();
+      holdWeek(null);
+      setWeekHold(null);
+      refresh();
+      setNotice("");
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  function openDesk(kind) {
+    if (kind === "practical" || kind === "essay") {
+      setAssessment(kind);
+      setGoal(kind === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL);
+    }
+    setView("desk");
+  }
+
   async function rescue(row) {
     const practicalOn = Boolean(state.features?.practical) && row.practical?.in_class;
     const theoryPct = row.theory?.marked ? row.theory.percent : 0;
     const practicalPct = row.practical?.marked ? row.practical.percent : 0;
     const which = practicalOn && practicalPct < theoryPct ? "practical" : "essay";
     const existing = (state.support?.learners || []).find((entry) => entry.id === row.id);
-    if (existing && (state.assessment === which || state.status === "done")) {
+    if (existing && state.assessment === which && !running) {
       setView("desk");
       setOpenId(row.id);
       return;
@@ -132,13 +241,16 @@ export default function App() {
     setAssessment(which);
     setGoal(goalText);
     setError("");
-    setNotice(`Rescue plan started for ${row.learner}. The Coach and the Designer are on this run.`);
+    setNotice(`Building a rescue plan for ${row.learner}. The Coach and the Designer are on this run.`);
+    setRescueFor({ id: row.id, name: row.learner, after: state.id });
     try {
       const pages = which === "essay" && scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((page) => page.id) } : null;
-      await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
+      const out = await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
+      adopt(out.run);
       refresh();
     } catch (e) {
       setNotice("");
+      setRescueFor(null);
       setError(e.message);
     }
   }
@@ -146,36 +258,33 @@ export default function App() {
   const high = state.risk?.counts?.High;
 
   return (
-    <>
+    <div className="app-frame">
+      <nav className="dock no-print" aria-label="Views">
+        <p className="dock-brand">LABLESS</p>
+        {[
+          ["board", "Home", "home"],
+          ["report", "Reports", "flag"],
+          ["desk", "Lab", "chip"],
+        ].map(([key, label, icon]) => (
+          <button
+            key={key}
+            type="button"
+            className={view === key ? "on" : ""}
+            aria-current={view === key ? "page" : undefined}
+            onClick={() => setView(key)}
+          >
+            <Icon name={icon} size={18} />
+            <span className="label-full">{label}{key === "board" && high ? ` · ${high}` : ""}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="app-main">
       <TopBar
         llm={state.llm}
         status={state.status}
         elapsed={state.elapsed}
         offline={offline}
-        theme={theme}
-        onToggleTheme={toggleTheme}
       />
-
-      <nav className="view-nav no-print" aria-label="Views">
-        <div className="view-nav-in">
-          {[
-            ["board", "Learners at risk", high ? `${high} high` : null],
-            ["report", "Score reports", null],
-            ["desk", "Marking desk", null],
-          ].map(([key, label, extra]) => (
-            <button
-              key={key}
-              type="button"
-              className={view === key ? "on" : ""}
-              aria-current={view === key ? "page" : undefined}
-              onClick={() => setView(key)}
-            >
-              {label}
-              {extra && <span className="nav-count">{extra}</span>}
-            </button>
-          ))}
-        </div>
-      </nav>
 
       {(offline || problem || failure) && (
         <div className="page page-tight no-print">
@@ -201,12 +310,12 @@ export default function App() {
 
       {view === "board" && (
         <div className="page no-print">
-          <RiskBoard state={state} onReport={openReport} onRescue={rescue} notice={notice} error={error} />
+          <RiskBoard state={{ ...state, week2 }} onReport={openReport} onRescue={rescue} onWeek2={week} onWeekReset={clearWeek} onDesk={openDesk} notice={notice} error={error} />
         </div>
       )}
       {view === "report" && (
         <div className="page">
-          <ScoreReport risk={state.risk} focusId={focusId} />
+          <ScoreReport risk={state.risk} week2={week2} focusId={focusId} onCatchUp={openCatchUp} />
         </div>
       )}
 
@@ -222,19 +331,41 @@ export default function App() {
           error={error}
           assessment={assessment}
           practicalAvailable={Boolean(state.features?.practical)}
+          uploads={uploads}
           onAssessment={(next) => {
             setAssessment(next);
             setGoal(next === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL);
           }}
         />
 
-        {/* The virtual lab, for the practical: attempts done here are marked in the next practical run. */}
-        {assessment === "practical" && <PCAssembly subs={state.subs} />}
+        {(assessment === "practical" || station?.kind === "model" || station?.kind === "lab" || station?.kind === "windows") && (
+          <header className="lab-hero">
+            <h2>{station?.kind === "windows" ? "Windows 11 tasks" : "Your virtual lab"}</h2>
+            <p>{station?.kind === "windows" ? "Software practical · outcomes S1–S4. Simulator by win11.blueedge.me." : "Hardware practical · outcomes H1–H6. Drag a part into the glowing spot, or open a 3D model."}</p>
+          </header>
+        )}
+        {(assessment === "practical" || station?.kind === "model") && (
+          <div id="virtual-lab">
+            <PCAssembly
+              subs={state.subs}
+              focus={station?.kind === "lab" || station?.kind === "model" ? { learnerId: station.learnerId, step: station.target, nonce: station.nonce } : null}
+              onViewModel={(id) => {
+                setPartId(id);
+                document.getElementById("part-viewer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+          </div>
+        )}
+        {(assessment === "practical" || station?.kind === "model") && (
+          <PartModels part={partId || (station?.kind === "model" ? station.target : "pc")} nonce={station?.nonce} />
+        )}
+
+        <WindowsStation subs={state.subs} focus={station?.kind === "windows" ? station : null} onSaved={refresh} />
 
         {/* Photographed scripts are essays, so the card is offered only when essays are being marked. */}
-        {assessment === "essay" && <ClassUpload mine={mine} onMine={setMine} running={running} />}
+        {assessment === "essay" && uploads && <ClassUpload mine={mine} onMine={setMine} running={running} />}
 
-        {assessment === "essay" && (
+        {assessment === "essay" && uploads && (
           <ScriptIngest
             scripts={scripts}
             onScripts={setScripts}
@@ -243,6 +374,16 @@ export default function App() {
             running={running}
           />
         )}
+
+        <section className="card" id="loop-status">
+          <header className="card-head">
+            <div>
+              <h2>The loop</h2>
+              <p>Plan → Do → Check → Correct → Deliver. Anything that fails a check goes back once, then to the teacher.</p>
+            </div>
+          </header>
+          <LoopStatus state={state} />
+        </section>
 
         <StatTiles stats={state.stats} subs={state.subs} plan={state.plan} rubric={state.rubric} />
 
@@ -331,6 +472,7 @@ export default function App() {
           onChanged={refresh}
         />
       )}
-    </>
+      </div>
+    </div>
   );
 }

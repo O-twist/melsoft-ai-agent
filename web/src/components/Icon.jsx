@@ -78,6 +78,18 @@ const PATHS = {
   ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   chevron: <path d="m9 6 6 6-6 6" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-3.2-3.2" />
+    </>
+  ),
+  home: (
+    <>
+      <path d="M4 11.5 12 4l8 7.5" />
+      <path d="M7 10.5V20h10v-9.5" />
+    </>
+  ),
   dot: <circle cx="12" cy="12" r="4.5" fill="currentColor" stroke="none" />,
 };
 
