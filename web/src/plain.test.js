@@ -10,6 +10,7 @@ test("risk reasons are put in plain words", () => {
     "Essay 46%. Did not finish the PC build, with 4 parts tried out of turn.");
   assert.equal(plainReason({ reason: "No theory mark against a 50% pass line; no PC assembly attempt on record" }),
     "No essay marked yet. No PC build on record.");
+  assert.equal(plainReason({ reason: "Theory 66% and PC assembly 100%, both on or above the 50% pass line" }), "Essay 66% and PC build 100%, both on track.");
   assert.match(plainReason({ reason: "x", theory_pass_note: "Passed theory, but the practical shows gaps: placed the GPU before the motherboard; placed the RAM before the CPU." }),
     /^Passed the essay, but the practical shows gaps: placed the GPU before the motherboard\.$/);
 });

@@ -15,6 +15,7 @@ export function plainReason(row) {
     return "Passed the essay, but the practical shows gaps" + (row.theory_pass_note.split(":").slice(1).join(":").split(";")[0] ? `: ${row.theory_pass_note.split(":").slice(1).join(":").split(";")[0].trim()}.` : ".");
   }
   const text = String(row.reason || "")
+    .replace(/Theory (\d+%) and PC assembly (\d+%), both on or above the \d+% pass line/i, "Essay $1 and PC build $2, both on track")
     .replace(/No theory mark against a \d+% pass line/gi, "No essay marked yet")
     .replace(/^Theory (\d+%)/i, "Essay $1")
     .replace(/ against a \d+% pass line/gi, "")
@@ -75,7 +76,7 @@ export function runProgress(state) {
     else if (working("DS")) headline = "Drafting the next lesson";
     else if (working("RV")) headline = "Checking the work";
     else if (working("MS")) headline = "Sending the results";
-    else headline = "Working";
+    else headline = "Finishing up";
   }
 
   let fraction = 0;

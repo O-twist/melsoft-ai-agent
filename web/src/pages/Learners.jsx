@@ -16,7 +16,8 @@ export default function Learners({ state, week2, weekView, onWeek, onOpen, onAct
   const change = Object.fromEntries((week2?.changes || []).map((c) => [c.id, c]));
   const subOf = (id) => (state.subs || []).find((s) => s.id === id);
   const plans = (state.support?.learners || []).filter((e) => e.status === "ready");
-  const needs = board.learners.filter((l) => l.band !== "Low");
+  // In Week 2, everyone who was on the rescue list stays in view, so the before and after can be read.
+  const needs = board.learners.filter((l) => l.band !== "Low" || (after && change[l.id]));
   const shown = (tab === "help" ? needs : board.learners).filter((l) => !q.trim() || `${l.learner} ${l.id} ${l.reason}`.toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
