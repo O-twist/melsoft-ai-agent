@@ -1,8 +1,9 @@
 """A teacher's own class: a class list and essays uploaded from the dashboard, checked in code, kept as a data folder.
 
-The folder looks exactly like data/ (class.csv, essays/<id>.txt, rubric.json, outcomes.json), so a run reads
-it the way it reads the sample class. A rubric or outcomes file the teacher does not upload is copied from the
-sample class. Nothing is changed in data/.
+The folder looks exactly like data/ (class.csv, essays/<id>.txt, rubric.json, memo.md, outcomes.json), so a run
+reads it the way it reads the sample class. A rubric or outcomes file the teacher does not upload is copied from the
+sample class. The sample memo is copied only with the sample rubric: a memo written for another task would mislead
+the markers, so a teacher's own rubric without a memo is marked from the rubric alone. Nothing is changed in data/.
 """
 import csv
 import io
@@ -130,7 +131,10 @@ def check_rubric(data):
     return problems
 
 
-def create_class(root, sample_dir, class_list, essays, rubric=None, outcomes=None):
+MAX_MEMO_BYTES = 100_000
+
+
+def create_class(root, sample_dir, class_list, essays, rubric=None, outcomes=None, memo=None):
     """Check an upload and keep it as a class folder. Returns (class id, summary), or raises ClassError.
 
     A problem that would make marking wrong (no ids, an id used twice, a broken rubric) refuses the upload.
@@ -144,6 +148,10 @@ def create_class(root, sample_dir, class_list, essays, rubric=None, outcomes=Non
             json.loads(read_text(outcomes))
         except ValueError as e:
             problems.append(f"outcomes.json is not valid JSON ({e})")
+    if memo is not None and len(memo) > MAX_MEMO_BYTES:
+        problems.append(f"the memo is larger than {MAX_MEMO_BYTES // 1000} kB")
+    elif memo is not None and not read_text(memo).strip():
+        problems.append("the memo is empty")
     if problems:
         raise ClassError(problems)
     matched, unmatched = match_essays(essays, rows)
@@ -161,8 +169,13 @@ def create_class(root, sample_dir, class_list, essays, rubric=None, outcomes=Non
             (folder / name).write_text(read_text(data), encoding="utf-8")
         elif (Path(sample_dir) / name).exists():
             shutil.copy(Path(sample_dir) / name, folder / name)
-    if (Path(sample_dir) / "practical_rubric.json").exists():
-        shutil.copy(Path(sample_dir) / "practical_rubric.json", folder / "practical_rubric.json")
+    if memo:
+        (folder / tools.MEMO_FILES["essay"]).write_text(read_text(memo).strip() + chr(10), encoding="utf-8")
+    elif not rubric and (Path(sample_dir) / tools.MEMO_FILES["essay"]).exists():
+        shutil.copy(Path(sample_dir) / tools.MEMO_FILES["essay"], folder / tools.MEMO_FILES["essay"])
+    for name in ("practical_rubric.json", tools.MEMO_FILES["practical"]):
+        if (Path(sample_dir) / name).exists():
+            shutil.copy(Path(sample_dir) / name, folder / name)
     subs = tools.load_submissions(folder)
     rubric_now = tools.load_rubric(folder)
     tools.triage(subs, rubric_now)
@@ -170,6 +183,7 @@ def create_class(root, sample_dir, class_list, essays, rubric=None, outcomes=Non
         "class": cid, "learners": len(rows), "essays": len(matched),
         "missing": [r["id"] for r in rows if r["id"] not in matched], "unmatched": unmatched,
         "rubric": rubric_now["title"], "own_rubric": bool(rubric), "own_outcomes": bool(outcomes),
+        "own_memo": bool(memo), "memo": bool(rubric_now.get("memo")),
         "preview": [{"id": s["id"], "learner": s["learner"], "words": s["words"], "flags": s["flags"]} for s in subs],
     }
     (folder / "upload.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")

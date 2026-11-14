@@ -18,16 +18,37 @@ async function post(url, body) {
 }
 
 /** scripts: { batch, order } of photographed pages for the Clerk to read, or null for typed essays only. */
-export const startRun = (goal, injectFault, scripts = null, injectOcrFault = false, assessment = "essay", classId = null) =>
-  post("/api/run", { goal, inject_fault: injectFault, scripts, inject_ocr_fault: Boolean(scripts && injectOcrFault), assessment, class: classId });
+/** review: the run waits, before anything is planned, for the teacher to check the memo, rubric and scripts. */
+export const startRun = (goal, injectFault, scripts = null, injectOcrFault = false, assessment = "essay", classId = null, review = false) =>
+  post("/api/run", { goal, inject_fault: injectFault, scripts, inject_ocr_fault: Boolean(scripts && injectOcrFault), assessment, class: classId, review });
 
-/** Upload a teacher's own class. files: { classList, essays: [], rubric, outcomes }. Returns the server's summary. */
+/** The teacher's answer while a run waits on the materials: go ahead and plan (with an optional note), or stop. */
+export const reviewRun = (go, note = "") => post("/api/review", { go, note });
+
+/** The memo, the rubric and every learner's script: of the current run (fromRun), or what is on disk before a run. */
+export async function fetchMaterials({ fromRun = false, assessment = "essay", classId = null } = {}) {
+  const query = fromRun
+    ? "source=run"
+    : `assessment=${encodeURIComponent(assessment)}${classId ? `&class=${encodeURIComponent(classId)}` : ""}`;
+  let res;
+  try {
+    res = await fetch(`/api/materials?${query}`);
+  } catch {
+    throw new Error("Cannot reach the server. Is it still running?");
+  }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || "Could not load the materials.");
+  return json;
+}
+
+/** Upload a teacher's own class. files: { classList, essays: [], rubric, memo, outcomes }. Returns the server's summary. */
 export async function uploadClass(files) {
   const form = new FormData();
   form.append("class_list", files.classList, files.classList.name);
   for (const essay of files.essays) form.append("essays", essay, essay.name);
   if (files.rubric) form.append("rubric", files.rubric, files.rubric.name);
   if (files.outcomes) form.append("outcomes", files.outcomes, files.outcomes.name);
+  if (files.memo) form.append("memo", files.memo, files.memo.name);
   let res;
   try {
     res = await fetch("/api/class", { method: "POST", body: form });
@@ -39,7 +60,7 @@ export async function uploadClass(files) {
   return json;
 }
 export const resolveEssay = (id, choice) => post("/api/resolve", { id, choice });
-export const resolveScript = (id, choice, learner = null) => post("/api/resolve", { kind: "script", id, choice, learner });
+export const resolveScript = (id, choice, learner = null, extra = {}) => post("/api/resolve", { kind: "script", id, choice, learner, ...extra });
 
 const RUN_KEY = "lablest.run";
 const TEXT_TYPES = { csv: "text/csv", md: "text/markdown", txt: "text/plain" };
@@ -128,6 +149,19 @@ export function holdWeek(result) {
   }
 }
 export const submitWindows = (learnerId, answers) => post("/api/windows", { learner_id: learnerId, answers });
+
+/** The signed-in teacher's profile and saved runs. Returns null when accounts are off or nobody is signed in. */
+export async function fetchMe() {
+  try {
+    const res = await fetch("/api/me");
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export const saveProfile = (profile) => post("/api/profile", profile);
+export const saveRunSummary = (summary) => post("/api/runs", summary).catch(() => null);
+export const loadSampleClass = () => post("/api/classes/sample", {}).catch(() => null);
 
 /** The Windows checklist, without the answers the Reviewer is holding. */
 export async function windowsTasks() {

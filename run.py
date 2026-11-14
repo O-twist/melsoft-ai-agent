@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from app import classes, ingest, risk, store, story, tools, week2
+from app import accounts, classes, ingest, risk, store, story, tools, week2
 from app import llm as llm_service
 from app import windows as windows_station
 from app.llm import make_llm
@@ -67,12 +67,20 @@ def request_llm():
 
 def features():
     """What this deployment can offer. Uploads need files that outlive a request, so they are local only."""
-    return {"practical": practical_lab(), "uploads": not serverless(), "replay": serverless()}
+    return {"practical": practical_lab(), "uploads": not serverless(), "replay": serverless(), "tests": tools.available_tests(DATA)}
 
 
 def practical_lab():
     """The PC assembly practical is offered when its rubric is on disk, unless PRACTICAL_LAB=0 turns it off."""
     return os.getenv("PRACTICAL_LAB", "1") != "0" and (Path(DATA) / tools.RUBRIC_FILES["practical"]).exists()
+
+
+def offered(assessment):
+    """Whether this kind of assessment can be marked: essays always, the practical behind its flag, a subject
+    test when its rubric is on disk."""
+    if assessment == "practical":
+        return practical_lab()
+    return assessment in tools.RUBRIC_FILES and (Path(DATA) / tools.RUBRIC_FILES[assessment]).exists()
 
 
 def live_attempts():
@@ -155,8 +163,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
         try:
+            if url.path == "/api/config":
+                return self._send(200, accounts.public_config())
+            if url.path == "/api/me":
+                return self._account(lambda token: accounts.me(token))
             if url.path == "/api/state":
-                run = current["run"]
+                run = self._own_run()
                 since = parse_qs(url.query).get("since", ["0"])[0]
                 state = run.snapshot(int(since) if since.isdigit() else 0) if run else idle_state()
                 state["features"] = features()
@@ -164,12 +176,14 @@ class Handler(BaseHTTPRequestHandler):
                 state["week2"] = current.get("week2") or store.load_week()
                 return self._send(200, state)
             if url.path == "/api/risk":
-                run = current["run"]
+                run = self._own_run()
                 return self._send(200, self._risk_board(run, run.subs if run else None))
+            if url.path == "/api/materials":
+                return self._materials(parse_qs(url.query))
             if url.path == "/api/file":
                 return self._download(parse_qs(url.query).get("name", [""])[0])
             if url.path == "/api/corrections.md":
-                run = current["run"]
+                run = self._own_run()
                 if not run:
                     return self._send(404, {"error": "not found"})
                 return self._send(200, story.to_markdown(run.corrections()).encode(), "text/markdown; charset=utf-8",
@@ -195,6 +209,36 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # for example a class list or rubric that cannot be read
             self._send(500, {"error": f"{type(e).__name__}: {e}"})
 
+    def _requester(self):
+        """The signed-in teacher's id, or None for a guest or when accounts are off."""
+        if not accounts.settings():
+            return None
+        token = accounts.token_from(self.headers)
+        if not token:
+            return None
+        try:
+            return accounts.user_for(token)["id"]
+        except accounts.AuthError:
+            return None
+
+    def _own_run(self):
+        """The current run, only for the teacher who started it (guests see only guests' runs)."""
+        run = current["run"]
+        if run is None or getattr(run, "owner", None) != self._requester():
+            return None
+        return run
+
+    def _account(self, work):
+        """Run one account call as the signed-in teacher. A bad token is a 401; a database problem a 502."""
+        try:
+            return self._send(200, work(accounts.token_from(self.headers)))
+        except accounts.AuthError as e:
+            return self._send(401, {"error": str(e)})
+        except ValueError as e:
+            return self._send(400, {"error": str(e)})
+        except Exception as e:  # the database is unreachable or refused: the teacher can carry on without history
+            return self._send(502, {"error": f"Your account could not be updated: {e}"})
+
     def _risk_board(self, run, overlay):
         """Planner risk scores. A failure here must not take the rest of the dashboard down."""
         try:
@@ -211,9 +255,35 @@ class Handler(BaseHTTPRequestHandler):
         store.remember(board, data_dir)
         return board
 
+    def _materials(self, query):
+        """The memo, the rubric and every learner's script: the current run's, or (before a run) what is on disk."""
+        one = lambda key: query.get(key, [""])[0]
+        run = self._own_run()
+        if one("source") == "run":
+            if not run:
+                return self._send(404, {"error": "There is no run yet."})
+            return self._send(200, run.materials())
+        assessment = one("assessment") or "essay"
+        if not offered(assessment):
+            return self._send(400, {"error": "That kind of assessment is not available."})
+        data_dir = DATA
+        if one("class") and assessment == "essay":
+            try:
+                data_dir = str(classes.class_folder(class_root(), one("class")))
+            except classes.ClassError as e:
+                return self._send(400, {"error": str(e)})
+        rubric = tools.load_rubric(data_dir, assessment)
+        subs = tools.load_submissions(data_dir)
+        if assessment == "practical":
+            tools.load_attempts(data_dir, subs, rubric, live_attempts())
+        elif tools.is_test(assessment):
+            tools.load_answers(data_dir, subs, assessment)
+        tools.triage(subs, rubric)
+        return self._send(200, tools.materials(subs, rubric))
+
     def _download(self, name):
         """Hand over a file the current run wrote (mark sheet, class report, catch-up plans, lesson plan). Only files the run recorded."""
-        run = current["run"]
+        run = self._own_run()
         if not run or name not in run.files:
             return self._send(404, {"error": "not found"})
         ctype = DOWNLOADS.get(Path(name).suffix, "application/octet-stream")
@@ -277,7 +347,8 @@ class Handler(BaseHTTPRequestHandler):
         if not one("class_list"):
             return self._send(400, {"error": "Choose the class list (a CSV file with id and name columns).", "problems": []})
         try:
-            cid, summary = classes.create_class(class_root(), DATA, one("class_list"), essays, one("rubric"), one("outcomes"))
+            cid, summary = classes.create_class(class_root(), DATA, one("class_list"), essays, one("rubric"), one("outcomes"),
+                                                one("memo"))
         except classes.ClassError as e:
             return self._send(400, {"error": "The class was not kept: " + str(e) + ".", "problems": e.problems})
         return self._send(200, summary)
@@ -297,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(200, {"ok": True, "saved": round(time.time()), "log": tools.render_attempt(attempt, rubric)})
 
     def _class_dir(self):
-        run = current["run"]
+        run = self._own_run()
         return run.data_dir if run else DATA
 
     def _week2(self, body):
@@ -343,6 +414,12 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/class":
                 return self._upload_class()
             body = self._body()
+            if url.path == "/api/profile":
+                return self._account(lambda token: accounts.save_profile(token, body))
+            if url.path == "/api/runs":
+                return self._account(lambda token: accounts.save_run(token, body))
+            if url.path == "/api/classes/sample":
+                return self._account(lambda token: accounts.load_sample_class(token))
             if url.path == "/api/attempt":
                 return self._save_attempt(body)
             if url.path == "/api/week2":
@@ -351,20 +428,23 @@ class Handler(BaseHTTPRequestHandler):
                 return self._save_windows(body)
             if url.path == "/api/run":
                 run = current["run"]
-                if run and run.status == "running":
-                    return self._send(409, {"error": "A run is already in progress."})
+                owner = self._requester()
+                if run and run.status == "running" and not serverless():
+                    return self._send(409, {"error": "A run is already in progress." if getattr(run, "owner", None) == owner else
+                                            "Another teacher's run is in progress on this computer. Try again in a minute."})
                 goal = str(body.get("goal") or "").strip()
                 if not goal:
                     return self._send(400, {"error": "Give the colleague a goal."})
                 scripts = body.get("scripts") if isinstance(body.get("scripts"), dict) else None
                 assessment = str(body.get("assessment") or "essay")
-                if assessment not in tools.RUBRIC_FILES or (assessment == "practical" and not practical_lab()):
+                if not offered(assessment):
                     return self._send(400, {"error": "That kind of assessment is not available."})
-                if assessment == "practical" and scripts:
-                    return self._send(400, {"error": "Photographed scripts are essays. Clear them to mark the PC assembly practical."})
+                what = "the PC assembly practical" if assessment == "practical" else f"the {tools.TESTS.get(assessment)} test"
+                if assessment != "essay" and scripts:
+                    return self._send(400, {"error": f"Photographed scripts are essays. Clear them to mark {what}."})
                 data_dir = DATA
                 if body.get("class"):
-                    if assessment == "practical":
+                    if assessment != "essay":
                         return self._send(400, {"error": "An uploaded class is for essays. Switch back to Essays, or use the sample class."})
                     try:
                         data_dir = str(classes.class_folder(class_root(), body.get("class")))
@@ -380,17 +460,26 @@ class Handler(BaseHTTPRequestHandler):
                 if serverless():
                     run = Run(request_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
                               assessment=assessment, live_attempts=live_attempts(), record=True)
+                    run.owner = owner
                     current["run"] = run
                     run._guarded()  # the whole loop, inside this request
                     return self._send(200, {"ok": True, "run": run.recording()})
                 current["run"] = Run(make_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
                                      pages=pages, batch=batch, inject_ocr_fault=bool(body.get("inject_ocr_fault")),
-                                     assessment=assessment, live_attempts=live_attempts())
+                                     assessment=assessment, live_attempts=live_attempts(),
+                                     review=bool(body.get("review")))
+                current["run"].owner = owner
                 current["run"].start()
                 return self._send(200, {"ok": True})
-            if url.path == "/api/resolve" and current["run"]:
+            if url.path == "/api/review":
+                run = self._own_run()
+                if not run or not run.approve(bool(body.get("go")), body.get("note") or ""):
+                    return self._send(400, {"error": "The run is not waiting for the materials to be checked."})
+                return self._send(200, {"ok": True})
+            if url.path == "/api/resolve" and self._own_run():
                 if body.get("kind") == "script":
-                    ok = current["run"].resolve_script(str(body.get("id")), str(body.get("choice")), body.get("learner") or None)
+                    ok = current["run"].resolve_script(str(body.get("id")), str(body.get("choice")), body.get("learner") or None,
+                                                       body.get("name") or None, body.get("email") or None)
                     return self._send(200, {"ok": True}) if ok else self._send(400, {"error": "That script is not waiting for that decision."})
                 ok = current["run"].resolve(str(body.get("id")), str(body.get("choice")))
                 return self._send(200, {"ok": True}) if ok else self._send(400, {"error": "That essay is not waiting for a decision."})

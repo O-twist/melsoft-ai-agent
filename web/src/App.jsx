@@ -1,478 +1,267 @@
-import { useCallback, useEffect, useState } from "react";
-import { fileUrl, heldWeek, holdWeek, resetWeek2, runWeek2, startRun, useRun } from "./api.js";
-import Icon from "./components/Icon.jsx";
-import { Disc } from "./components/Badge.jsx";
-import TopBar from "./components/TopBar.jsx";
-import GoalBar, { DEFAULT_GOAL, PRACTICAL_GOAL } from "./components/GoalBar.jsx";
-import StatTiles from "./components/StatTiles.jsx";
-import TeamBoard from "./components/TeamBoard.jsx";
-import PlanCard from "./components/PlanCard.jsx";
-import LiveLog from "./components/LiveLog.jsx";
-import SubmissionsTable from "./components/SubmissionsTable.jsx";
-import AgreementChart from "./components/AgreementChart.jsx";
-import LevelsChart from "./components/LevelsChart.jsx";
-import CriteriaMeters from "./components/CriteriaMeters.jsx";
-import ClassReport from "./components/ClassReport.jsx";
-import SupportCard from "./components/SupportCard.jsx";
-import LessonCard from "./components/LessonCard.jsx";
-import ConsistencyCard from "./components/ConsistencyCard.jsx";
-import ScriptIngest from "./components/ScriptIngest.jsx";
-import IngestReview from "./components/IngestReview.jsx";
-import PCAssembly from "./components/PCAssembly.jsx";
-import WindowsStation from "./components/WindowsStation.jsx";
-import PartModels from "./components/PartModels.jsx";
-import CorrectionsPanel from "./components/CorrectionsPanel.jsx";
-import ClassUpload from "./components/ClassUpload.jsx";
-import DetailDrawer from "./components/DetailDrawer.jsx";
-import RiskBoard from "./components/RiskBoard.jsx";
-import LoopStatus from "./components/LoopStatus.jsx";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchMe, heldWeek, holdWeek, loadSampleClass, runWeek2, samplePages, saveRunSummary, startRun, useRun } from "./api.js";
+import { useAuth } from "./auth.js";
+import { DEFAULT_GOAL, PRACTICAL_GOAL } from "./components/GoalBar.jsx";
 import ScoreReport from "./components/ScoreReport.jsx";
+import { runSummary, runTitle } from "./plain.js";
+import { RUNS_KEY, TEST_KEY, TEST_OFF, remember, usePref } from "./prefs.js";
+import { go, useRoute } from "./router.js";
+import Auth from "./pages/Auth.jsx";
+import Classes from "./pages/Classes.jsx";
+import Lab from "./pages/Lab.jsx";
+import Learners, { LearnerDrawer } from "./pages/Learners.jsx";
+import Messages from "./pages/Messages.jsx";
+import NewRun from "./pages/NewRun.jsx";
+import Run from "./pages/Run.jsx";
+import Runs from "./pages/Runs.jsx";
+import Settings from "./pages/Settings.jsx";
+import Shell from "./pages/Shell.jsx";
+import Today, { attentionItems } from "./pages/Today.jsx";
+import { Confirm, Ico } from "./pages/ui.jsx";
 
-const DOWNLOADS = [
-  { name: "marks.csv", label: "Mark sheet (CSV)" },
-  { name: "class_report.md", label: "Class report" },
-];
-
-/**
- * Bring a section to the top of the window and keep it there while the page settles. The lab's pictures, the 3D
- * model and the simulator finish loading after the scroll starts and push the target away, so aim again until
- * it holds still. The first touch or wheel movement hands the page back to the person using it.
- */
-function settleOn(id, forMs = 3500) {
-  const target = document.getElementById(id);
-  if (!target) return undefined;
-  target.scrollIntoView({ behavior: "smooth", block: "start" });
-  const began = Date.now();
-  const stop = () => {
-    clearInterval(timer);
-    window.removeEventListener("wheel", stop);
-    window.removeEventListener("touchstart", stop);
-  };
-  const timer = setInterval(() => {
-    const age = Date.now() - began;
-    if (age > forMs) return stop();
-    const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-    if (age > 700 && Math.abs(target.getBoundingClientRect().top - margin) > 24) target.scrollIntoView({ behavior: "auto", block: "start" });
-    return undefined;
-  }, 250);
-  window.addEventListener("wheel", stop, { passive: true });
-  window.addEventListener("touchstart", stop, { passive: true });
-  return stop;
-}
-
-function Splash({ offline, problem }) {
-  return (
-    <main className="splash">
-      {problem ? (
-        <>
-          <h1>The server reported a problem</h1>
-          <p>{problem}</p>
-          <p className="splash-hint">Check the files in the data folder, then this page will carry on by itself.</p>
-        </>
-      ) : offline ? (
-        <>
-          <h1>Cannot reach LabLess</h1>
-          <p>Start the server with <code>start.cmd</code> or <code>python run.py</code>. This page reconnects by itself.</p>
-        </>
-      ) : (
-        <p>Loading…</p>
-      )}
-    </main>
-  );
-}
+const GUEST_KEY = "lablest.guest";
 
 export default function App() {
+  const auth = useAuth();
+  const [guest, setGuest] = useState(() => {
+    try {
+      return sessionStorage.getItem(GUEST_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (!auth.ready) return <div className="l-auth"><p style={{ color: "#5F6779" }}>Loading LabLess…</p></div>;
+  if (auth.enabled && !auth.session && !guest) {
+    return <Auth onGuest={() => { try { sessionStorage.setItem(GUEST_KEY, "1"); } catch { /* still works for this visit */ } setGuest(true); }} />;
+  }
+  return <Workspace auth={auth} />;
+}
+
+const CRUMBS = {
+  today: "Today", new: "Runs / New run", run: "Runs / Latest run", runs: "Runs", learners: "Learners", classes: "Classes",
+  lab: "Lab", messages: "Messages", settings: "Settings", report: "Learners / Score report",
+};
+
+function Workspace({ auth }) {
   const { state, events, offline, problem, refresh, adopt } = useRun();
-  const [goal, setGoal] = useState(DEFAULT_GOAL);
-  const [injectFault, setInjectFault] = useState(false);
-  const [scripts, setScripts] = useState(null); // photographed pages to read: { batch, pages } in reading order
-  const [injectOcrFault, setInjectOcrFault] = useState(false);
-  const [assessment, setAssessment] = useState("essay"); // essays, or the PC assembly practical
-  const [mine, setMine] = useState(null); // the teacher's own class, once uploaded and checked
-  const [error, setError] = useState("");
-  const [openId, setOpenId] = useState(null);
-  const [view, setView] = useState("board"); // landing is the at-risk list; the marking desk stays mounted
-  const [focusId, setFocusId] = useState(null);
+  const route = useRoute();
+  const [menu, setMenu] = useState(false);
+  const [mine, setMine] = useState(null);
+  const [scripts, setScripts] = useState(null);
+  const [test] = usePref(TEST_KEY, TEST_OFF);
+  const runsKey = `${RUNS_KEY}.${auth.session?.user?.id || "guest"}`; // each teacher's history is their own
+  const [history] = usePref(runsKey, []);
+  const [drawer, setDrawer] = useState(null); // { id, tab }
+  const [ask, setAsk] = useState(null); // a learner whose catch-up plan run is waiting for a yes
+  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [weekView, setWeekView] = useState("1");
   const [weekHold, setWeekHold] = useState(heldWeek);
-  const [station, setStation] = useState(null);
-  const [partId, setPartId] = useState("");
-  const [rescueFor, setRescueFor] = useState(null); // the learner a rescue run was started for: { id, name, after: the run before it }
-  const closeDrawer = useCallback(() => setOpenId(null), []);
-
-  // Joining a run that is already under way (a reload, or a second window): show the goal it was given.
-  const runId = state?.id;
-  useEffect(() => {
-    if (runId && state.goal) {
-      setGoal(state.goal);
-      setInjectFault(Boolean(state.inject_fault));
-      setInjectOcrFault(Boolean(state.inject_ocr_fault));
-      setAssessment(state.assessment || "essay");
-    }
-    // Deliberately keyed on the run alone: this must not fire on every poll and undo the user's typing.
-  }, [runId]);
+  const [profile, setProfile] = useState(null);
+  const [serverRuns, setServerRuns] = useState([]);
+  const rescueFor = useRef(null);
+  const uid = auth.session?.user?.id;
+  const [onboarded, setOnboarded] = usePref(`lablest.onboarded.${uid || "guest"}`, false);
 
   useEffect(() => {
-    if (!station) return;
-    const id = station.kind === "windows" ? "windows-station" : station.kind === "model" ? "part-viewer" : "virtual-lab";
-    return settleOn(id);
-  }, [station]);
+    if (!uid) return;
+    fetchMe().then((me) => {
+      if (!me) return;
+      setProfile(me.profile || null);
+      setServerRuns(me.runs || []);
+      if ((me.runs || []).length || (me.classes || []).length) setOnboarded(true);
+    });
+  }, [uid, setOnboarded]);
 
-  // A rescue run was started from the home screen: when it ends, open that learner's plan, or say why there is none.
-  const runStatus = state?.status;
+  // A learner opened by address (#/learners/E10) opens the drawer.
+  const linked = route.page === "learners" ? route.parts[1] : null;
   useEffect(() => {
-    if (!rescueFor || !runId || runId === rescueFor.after || runStatus === "running") return;
-    setRescueFor(null);
-    if (runStatus !== "done") {
-      setNotice("");
-      return;
-    }
-    const entry = (state.support?.learners || []).find((e) => e.id === rescueFor.id);
-    if (entry?.status === "ready") {
-      setNotice(`Rescue plan ready for ${rescueFor.name}.`);
-      setView("desk");
-      setOpenId(rescueFor.id);
-    } else if (entry) {
-      setNotice(`The Coach's plan for ${rescueFor.name} failed its checks twice, so it is held for you rather than shown. The warning signs are on the marking desk.`);
-    } else {
-      setNotice(`The Coach found no warning sign in this work for ${rescueFor.name}, so there is no rescue plan to build. Their score report lists the next steps.`);
+    if (linked) setDrawer({ id: linked, tab: route.query.tab || "overview" });
+  }, [linked, route.query.tab]);
+  // Moving to another page closes the drawer and the phone menu.
+  useEffect(() => {
+    if (!linked) setDrawer(null);
+    setMenu(false);
+  }, [route.page, linked]);
+
+  // Keep finished runs in the history, here and in the teacher's account.
+  const status = state?.status;
+  useEffect(() => {
+    if (!state?.id || (status !== "done" && status !== "failed")) return;
+    const summary = runSummary(state);
+    remember(summary, runsKey);
+    if (uid) saveRunSummary(summary);
+    const who = rescueFor.current;
+    if (who && who.after !== state.id) {
+      rescueFor.current = null;
+      const entry = (state.support?.learners || []).find((e) => e.id === who.id);
+      setNotice(entry?.status === "ready" ? `Catch-up plan ready for ${who.name}.` : entry ? `The Coach's plan for ${who.name} failed its checks twice, so it is held for you.` : `No warning sign was found for ${who.name} in this work, so no catch-up plan was needed.`);
+      setDrawer({ id: who.id, tab: "overview" });
     }
     // Keyed on the run ending, not on every poll.
-  }, [runId, runStatus, rescueFor]);
+  }, [state?.id, status]);
 
-  if (!state) return <Splash offline={offline} problem={problem} />;
+  const week2 = state?.week2?.ok ? state.week2 : weekHold;
+  const uploads = state?.features?.uploads !== false;
+  const practicalOn = Boolean(state?.features?.practical);
+  const testOn = Boolean(test.fault || test.ocr);
+  const teacher = profile?.display_name || auth.session?.user?.name || "";
+  const allRuns = [...history, ...serverRuns.filter((r) => !history.some((h) => h.id === r.id))].sort((a, b) => (b.when || 0) - (a.when || 0));
 
-  const week2 = state.week2?.ok ? state.week2 : weekHold;
+  const openLearner = useCallback((id, tab = "overview") => setDrawer({ id, tab }), []);
+  const closeDrawer = useCallback(() => {
+    setDrawer(null);
+    if (linked) go("learners");
+  }, [linked]);
 
-  const running = state.status === "running";
-  const selected = state.subs.find((s) => s.id === openId);
-  const hasMarks = state.subs.some((s) => s.marker);
-  const failure = state.status === "failed" ? [...events].reverse().find((e) => e.kind === "ERROR") : null;
-  const downloads = DOWNLOADS.filter((d) => state.files.includes(d.name));
-  // The Coach and the Designer only work when the goal asks for them, so their cards appear only then.
-  const wantsSupport = Boolean(state.plan?.deliver.support);
-  const wantsLesson = Boolean(state.plan?.deliver.lesson);
-  const behind = (state.support?.learners || []).map((e) => e.id);
-  // Uploads need files that outlive a request, so a serverless deployment leaves those two cards out.
-  const uploads = state.features?.uploads !== false;
+  async function launch(goal, assessment, classId, pages, fault, ocr, review = false) {
+    const out = await startRun(goal, fault, pages, ocr, assessment, classId, review);
+    adopt(out.run); // a serverless server hands the finished run back to be played here; a local one is polled
+    refresh();
+    go("run");
+  }
 
-  async function start() {
-    setError("");
-    setOpenId(null);
+  async function startFromForm({ goal, assessment, classId, scripts: wantScripts, review }) {
+    let pages = null;
+    if (wantScripts) {
+      let batch = scripts;
+      if (!batch?.pages?.length && test.sample) {
+        batch = await samplePages();
+        setScripts(batch);
+      }
+      if (batch?.pages?.length) pages = { batch: batch.batch, order: batch.pages.map((p) => p.id) };
+    }
+    await launch(goal, assessment, classId, pages, test.fault, Boolean(pages && test.ocr), review);
+  }
+
+  function action(row, step) {
+    if (step.key === "plan") setAsk(row);
+    else if (step.key === "resubmit") openLearner(row.id, "messages");
+    else openLearner(row.id, step.key === "decide" ? "essay" : "overview");
+  }
+
+  async function buildPlan(row) {
+    setBusy(true);
+    const practical = practicalOn && row.practical?.in_class && (row.practical?.marked ? row.practical.percent : 0) < (row.theory?.marked ? row.theory.percent : 0);
+    const which = practical ? "practical" : "essay";
+    const goal = `${row.learner} needs a rescue plan. ${which === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL} Tell me who is falling behind, with a catch-up plan for each, and draft a 45-minute lesson on the class's weakest area with exercises.`;
     try {
-      const pages = scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((p) => p.id) } : null;
-      const essays = assessment === "essay";
-      const out = await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null);
-      adopt(out.run); // a serverless server hands the finished run back to be played here; a local one is polled
-      refresh();
-      // Bring the progress, the team and the log into view: from here on the goal box is not the interesting part.
-      settleOn("loop-status");
+      rescueFor.current = { id: row.id, name: row.learner, after: state?.id };
+      setDrawer(null);
+      await launch(goal, which, null, null, test.fault, false);
+      setNotice(`Building a catch-up plan for ${row.learner}. The Coach and the Designer are on this run.`);
     } catch (e) {
-      setError(e.message);
+      rescueFor.current = null;
+      setNotice(e.message);
+    } finally {
+      setBusy(false);
+      setAsk(null);
     }
   }
 
-  function openReport(id) {
-    setFocusId(id);
-    setView("report");
-  }
-
-  function openCatchUp(learner, link) {
-    setStation({ ...link, learnerId: learner.id, nonce: Date.now() });
-    if (link.kind === "model") setPartId(link.target);
-    if (link.kind !== "windows") setAssessment("practical");
-    setView("desk");
-  }
-
-  async function week(learnerId) {
-    setError("");
+  async function scoreWeek2(id) {
     try {
-      const result = await runWeek2(learnerId || null);
+      const result = await runWeek2(id || null);
       if (result?.ok) {
         holdWeek(result);
         setWeekHold(result);
+        setWeekView("2");
       }
       refresh();
-      setNotice(learnerId ? `Week 2 scored for ${learnerId}.` : "Week 2 scored for the class.");
     } catch (e) {
-      setNotice("");
-      setError(e.message);
+      setNotice(e.message);
     }
   }
 
-  async function clearWeek() {
-    setError("");
-    try {
-      await resetWeek2();
-      holdWeek(null);
-      setWeekHold(null);
-      refresh();
-      setNotice("");
-    } catch (e) {
-      setError(e.message);
-    }
+  async function chooseWeek(view) {
+    setWeekView(view);
+    if (view === "2" && !week2) await scoreWeek2();
   }
 
-  function openDesk(kind) {
-    if (kind === "practical" || kind === "essay") {
-      setAssessment(kind);
-      setGoal(kind === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL);
-    }
-    setView("desk");
+  function catchUp(row, link) {
+    setDrawer(null);
+    const n = Date.now();
+    if (link.kind === "windows") go("lab", { tab: "windows", learner: row.id, task: link.target, n });
+    else if (link.kind === "model") go("lab", { tab: "parts", part: link.target, learner: row.id, n });
+    else go("lab", { tab: "pc", learner: row.id, step: link.target, n });
   }
 
-  async function rescue(row) {
-    const practicalOn = Boolean(state.features?.practical) && row.practical?.in_class;
-    const theoryPct = row.theory?.marked ? row.theory.percent : 0;
-    const practicalPct = row.practical?.marked ? row.practical.percent : 0;
-    const which = practicalOn && practicalPct < theoryPct ? "practical" : "essay";
-    const existing = (state.support?.learners || []).find((entry) => entry.id === row.id);
-    if (existing && state.assessment === which && !running) {
-      setView("desk");
-      setOpenId(row.id);
-      return;
-    }
-    if (running) {
-      setView("desk");
-      return;
-    }
-    const base = which === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL;
-    const goalText = `${row.learner} needs a rescue plan. ${base} Tell me who is falling behind, with a catch-up plan for each, and draft a 45-minute lesson on the class's weakest area with exercises.`;
-    setAssessment(which);
-    setGoal(goalText);
-    setError("");
-    setNotice(`Building a rescue plan for ${row.learner}. The Coach and the Designer are on this run.`);
-    setRescueFor({ id: row.id, name: row.learner, after: state.id });
-    try {
-      const pages = which === "essay" && scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((page) => page.id) } : null;
-      const out = await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
-      adopt(out.run);
-      refresh();
-    } catch (e) {
-      setNotice("");
-      setRescueFor(null);
-      setError(e.message);
-    }
+  async function loadSample() {
+    await loadSampleClass();
+    setMine(null);
+    setOnboarded(true);
   }
 
-  const high = state.risk?.counts?.High;
+  // A run that stops for the materials to be checked brings the teacher to it, from whichever page they are on.
+  const awaiting = Boolean(state?.review?.waiting);
+  useEffect(() => {
+    if (awaiting) go("run");
+  }, [awaiting, state?.id]);
 
-  return (
-    <div className="app-frame">
-      <nav className="dock no-print" aria-label="Views">
-        <p className="dock-brand">LABLESS</p>
-        {[
-          ["board", "Home", "home"],
-          ["report", "Reports", "flag"],
-          ["desk", "Lab", "chip"],
-        ].map(([key, label, icon]) => (
-          <button
-            key={key}
-            type="button"
-            className={view === key ? "on" : ""}
-            aria-current={view === key ? "page" : undefined}
-            onClick={() => setView(key)}
-          >
-            <Icon name={icon} size={18} />
-            <span className="label-full">{label}{key === "board" && high ? ` · ${high}` : ""}</span>
-          </button>
-        ))}
-      </nav>
-      <div className="app-main">
-      <TopBar
-        llm={state.llm}
-        status={state.status}
-        elapsed={state.elapsed}
-        offline={offline}
-      />
+  const page = CRUMBS[route.page] ? route.page : "today";
+  const items = attentionItems(state);
+  const badges = { today: items.length || null, learners: state?.risk?.counts?.High || null };
+  const crumb = page === "run" && state?.id ? <>Runs / <b>{runTitle(state.goal)}</b></> : <b>{CRUMBS[page]}</b>;
 
-      {(offline || problem || failure) && (
-        <div className="page page-tight no-print">
-          {(offline || problem) && (
-            <div className="banner" role="status">
-              <Disc tone="serious" icon="alert" />
-              <div>
-                <b>{problem ? "The server reported a problem." : "Lost contact with the server."}</b>{" "}
-                {problem || "Showing the last thing it sent. This page reconnects by itself."}
-              </div>
-            </div>
-          )}
-          {failure && (
-            <div className="banner banner-critical" role="alert">
-              <Disc tone="critical" icon="alert" />
-              <div>
-                <b>The run stopped before it finished.</b> {failure.msg.replace(/^Run stopped:\s*/, "")}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {view === "board" && (
-        <div className="page no-print">
-          <RiskBoard state={{ ...state, week2 }} onReport={openReport} onRescue={rescue} onWeek2={week} onWeekReset={clearWeek} onDesk={openDesk} notice={notice} error={error} />
-        </div>
-      )}
-      {view === "report" && (
-        <div className="page">
-          <ScoreReport risk={state.risk} week2={week2} focusId={focusId} onCatchUp={openCatchUp} />
-        </div>
-      )}
-
-      <main className="page" hidden={view !== "desk"}>
-        <GoalBar
-          goal={goal}
-          onGoal={setGoal}
-          injectFault={injectFault}
-          onInjectFault={setInjectFault}
-          running={running}
-          hasRun={Boolean(state.id)}
-          onStart={start}
-          error={error}
-          assessment={assessment}
-          practicalAvailable={Boolean(state.features?.practical)}
-          uploads={uploads}
-          onAssessment={(next) => {
-            setAssessment(next);
-            setGoal(next === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL);
-          }}
-        />
-
-        {(assessment === "practical" || station?.kind === "model" || station?.kind === "lab" || station?.kind === "windows") && (
-          <header className="lab-hero">
-            <h2>{station?.kind === "windows" ? "Windows 11 tasks" : "Your virtual lab"}</h2>
-            <p>{station?.kind === "windows" ? "Software practical · outcomes S1–S4. Simulator by win11.blueedge.me." : "Hardware practical · outcomes H1–H6. Drag a part into the glowing spot, or open a 3D model."}</p>
-          </header>
-        )}
-        {(assessment === "practical" || station?.kind === "model") && (
-          <div id="virtual-lab">
-            <PCAssembly
-              subs={state.subs}
-              focus={station?.kind === "lab" || station?.kind === "model" ? { learnerId: station.learnerId, step: station.target, nonce: station.nonce } : null}
-              onViewModel={(id) => {
-                setPartId(id);
-                document.getElementById("part-viewer")?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            />
-          </div>
-        )}
-        {(assessment === "practical" || station?.kind === "model") && (
-          <PartModels part={partId || (station?.kind === "model" ? station.target : "pc")} nonce={station?.nonce} />
-        )}
-
-        <WindowsStation subs={state.subs} focus={station?.kind === "windows" ? station : null} onSaved={refresh} />
-
-        {/* Photographed scripts are essays, so the card is offered only when essays are being marked. */}
-        {assessment === "essay" && uploads && <ClassUpload mine={mine} onMine={setMine} running={running} />}
-
-        {assessment === "essay" && uploads && (
-          <ScriptIngest
-            scripts={scripts}
-            onScripts={setScripts}
-            injectOcrFault={injectOcrFault}
-            onInjectOcrFault={setInjectOcrFault}
-            running={running}
-          />
-        )}
-
-        <section className="card" id="loop-status">
-          <header className="card-head">
-            <div>
-              <h2>The loop</h2>
-              <p>Plan → Do → Check → Correct → Deliver. Anything that fails a check goes back once, then to the teacher.</p>
-            </div>
-          </header>
-          <LoopStatus state={state} />
-        </section>
-
-        <StatTiles stats={state.stats} subs={state.subs} plan={state.plan} rubric={state.rubric} />
-
-        <div className="cols wide-narrow">
-          <TeamBoard agents={state.agents} spans={state.spans} now={state.t} status={state.status} />
-          <PlanCard plan={state.plan} status={state.status} />
-        </div>
-
-        <div className="cols even">
-          <LiveLog events={events} onOpen={setOpenId} />
-          <SubmissionsTable subs={state.subs} rubric={state.rubric} behind={behind} selectedId={openId} onOpen={setOpenId} />
-        </div>
-
-        <CorrectionsPanel corrections={state.corrections} status={state.status} subs={state.subs} onOpen={setOpenId} />
-
-        {state.scripts && (
-          <IngestReview scripts={state.scripts} subs={state.subs} status={state.status} files={state.files} onOpen={setOpenId} onChanged={refresh} />
-        )}
-
-        {hasMarks && (
-          <>
-            <div className="section-head">
-              <div>
-                <h2>Results</h2>
-                <p>
-                  {running ? "Filling in as each batch is checked." : "From the marks the two markers settled on."}
-                  {state.where && downloads.length > 0 && <> Files are saved in <span className="mono">{state.where}</span>.</>}
-                </p>
-              </div>
-              {downloads.length > 0 && (
-                <div className="downloads">
-                  {downloads.map((d) => (
-                    <a key={d.name} className="btn small" href={fileUrl(d.name)} download={d.name}>
-                      <Icon name="download" size={14} />{d.label}
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="cols wide-narrow">
-              <AgreementChart subs={state.subs} rubric={state.rubric} selectedId={openId} onOpen={setOpenId} />
-              <div className="stack">
-                <LevelsChart subs={state.subs} rubric={state.rubric} />
-                <CriteriaMeters subs={state.subs} rubric={state.rubric} />
-              </div>
-            </div>
-          </>
-        )}
-
-        {(wantsSupport || wantsLesson) && (
-          <>
-            <div className="section-head">
-              <div>
-                <h2>Beyond the marks</h2>
-                <p>
-                  {wantsSupport && wantsLesson
-                    ? "Who needs help, what to teach next, and whether the two agree"
-                    : wantsSupport ? "Who needs help" : "What to teach next"}
-                  , worked out from the settled marks.
-                </p>
-              </div>
-            </div>
-            {wantsSupport && (
-              <SupportCard support={state.support} outcomes={state.outcomes} status={state.status} files={state.files} onOpen={setOpenId} noun={state.rubric?.work} />
-            )}
-            {wantsLesson && (
-              <LessonCard lesson={state.lesson} outcomes={state.outcomes} status={state.status} files={state.files} practical={state.rubric?.kind === "practical"} />
-            )}
-            {wantsSupport && wantsLesson && (
-              <ConsistencyCard consistency={state.consistency} status={state.status} />
-            )}
-          </>
-        )}
-
-        {state.report && <ClassReport report={state.report} noun={state.rubric?.work} onOpen={setOpenId} />}
-      </main>
-
-      {selected && (
-        <DetailDrawer
-          sub={selected}
-          rubric={state.rubric}
-          support={state.support?.learners.find((e) => e.id === selected.id)}
-          outcomes={state.outcomes}
-          onClose={closeDrawer}
-          onChanged={refresh}
-        />
-      )}
+  const onboarding = auth.enabled && uid && !onboarded ? (
+    <div className="l-page narrow">
+      <div className="l-head"><div><h1>Welcome{teacher ? `, ${teacher}` : ""}</h1><div className="l-sub">Create your first class, then start your first run.</div></div></div>
+      <div className="l-row">
+        <section className="l-card" style={{ flex: 1 }}><div className="bd">
+          <h2 style={{ fontSize: 15, fontWeight: 600 }}>Load the sample Grade 12 CAT class</h2>
+          <p className="l-muted" style={{ margin: "6px 0 14px" }}>Twelve example learners with essays, PC assembly attempts and Windows tasks. No real learner data.</p>
+          <button type="button" className="l-btn p" onClick={loadSample}>Load the sample class</button>
+        </div></section>
+        <section className="l-card" style={{ flex: 1 }}><div className="bd">
+          <h2 style={{ fontSize: 15, fontWeight: 600 }}>Upload your own class</h2>
+          <p className="l-muted" style={{ margin: "6px 0 14px" }}>A CSV class list (id, name, email, previous) and one .txt essay per learner.</p>
+          <button type="button" className="l-btn" onClick={() => { setOnboarded(true); go("classes"); }}>Upload a class</button>
+        </div></section>
       </div>
     </div>
+  ) : null;
+
+  let body;
+  if (!state) body = <div className="l-page"><div className="l-skel" style={{ height: 28, width: 260, marginBottom: 16 }} /><div className="l-kpis">{[0, 1, 2, 3].map((i) => <div key={i} className="l-skel" style={{ height: 90 }} />)}</div><div className="l-skel" style={{ height: 300 }} /></div>;
+  else if (page === "today") body = <Today state={state} history={allRuns} teacher={teacher} onOpenLearner={openLearner} onAction={action} onChanged={refresh} onboarding={onboarding} />;
+  else if (page === "new") body = <NewRun state={state} mine={mine} scripts={scripts} onScripts={setScripts} test={test} uploads={uploads} practicalOn={practicalOn} start={startFromForm} initialScripts={route.query.scripts === "1"} canPause={!state.features?.replay} tests={state.features?.tests || []} />;
+  else if (page === "run") body = <Run state={state} events={events} tab={route.query.tab || "progress"} onTab={(t) => go("run", { tab: t })} onOpen={openLearner} onChanged={refresh} onRunAgain={() => launch(state.goal, state.assessment, null, null, state.inject_fault, false)} />;
+  else if (page === "runs") body = <Runs state={state} history={allRuns} />;
+  else if (page === "learners") body = <Learners state={state} week2={week2} weekView={weekView} onWeek={chooseWeek} onOpen={openLearner} onAction={action} />;
+  else if (page === "classes") body = <Classes state={state} mine={mine} onMine={setMine} uploads={uploads} scripts={scripts} onChanged={refresh} onLoadSample={auth.enabled && uid ? loadSample : null} />;
+  else if (page === "lab") body = <Lab state={state} query={route.query} onChanged={refresh} />;
+  else if (page === "messages") body = <Messages state={state} />;
+  else if (page === "settings") body = <Settings state={state} tab={route.query.tab || "test"} auth={auth} profile={profile} onProfile={setProfile} uploads={uploads} />;
+  else if (page === "report") body = (
+    <div className="l-page">
+      <button type="button" className="l-btn sm no-print" style={{ marginBottom: 12 }} onClick={() => go("learners")}><Ico name="undo" size={14} />Back to learners</button>
+      <ScoreReport key={`${route.parts[1]}-${route.query.mode}`} risk={state.risk} week2={week2} focusId={route.parts[1] || null} initialMode={route.query.mode === "class" ? "class" : "learner"} initialWeek={route.query.week === "2" && week2 ? "after" : "before"} onCatchUp={catchUp} />
+    </div>
+  );
+
+  return (
+    <Shell page={page === "report" ? "learners" : page === "run" ? "runs" : page} crumb={crumb} badges={badges} llm={state?.llm} className={mine?.name || "Grade 12 CAT"} learners={(state?.subs || []).length || 12}
+      testOn={testOn} menuOpen={menu} onMenu={setMenu}>
+      {(offline || problem) && (
+        <div className="l-callout bad" role="status" style={{ marginBottom: 14 }}>
+          <b>{problem ? "The server reported a problem." : "Lost contact with LabLess."}</b> {problem || "Showing the last thing it sent. This page reconnects by itself."}
+        </div>
+      )}
+      {notice && (
+        <div className="l-callout" role="status" style={{ marginBottom: 14, display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ flex: 1 }}>{notice}</span><button type="button" className="l-btn sm ghost" onClick={() => setNotice("")} aria-label="Dismiss"><Ico name="x" size={14} /></button>
+        </div>
+      )}
+      {body}
+      {drawer && state && (
+        <LearnerDrawer id={drawer.id} tab={drawer.tab} onTab={(t) => setDrawer({ ...drawer, tab: t })} state={state} week2={week2} weekView={weekView}
+          onClose={closeDrawer} onChanged={refresh} onAction={action} onCatchUp={catchUp} onWeek2={(id) => scoreWeek2(id)} />
+      )}
+      {ask && (
+        <Confirm title={`Build a catch-up plan for ${ask.learner}?`} yes="Start" busy={busy} onYes={() => buildPlan(ask)} onNo={() => setAsk(null)}>
+          This starts a run: the class is marked again, the Coach writes a catch-up plan for each learner who is behind, and the Designer drafts a lesson. About 1 minute.
+        </Confirm>
+      )}
+    </Shell>
   );
 }

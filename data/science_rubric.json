@@ -1,0 +1,267 @@
+{
+  "kind": "test",
+  "work": "answer script",
+  "subject": "Grade 10 Physical Sciences",
+  "title": "Grade 10 Physical Sciences class test (40 marks)",
+  "task": "Answer all four questions. Give units with every calculated answer and show your working.",
+  "min_words": 20,
+  "support": {
+    "below_pct": 50,
+    "drop_points": 15,
+    "criterion_below_pct": 40
+  },
+  "criteria": [
+    {
+      "id": "q1",
+      "name": "Question 1: Matter and materials",
+      "max": 8,
+      "parts": [
+        {
+          "label": "1.1",
+          "marks": 2,
+          "question": "Define an element.",
+          "answer": "A pure substance made of only one type of atom.",
+          "accept": [
+            "(one|1|single) (type|kind) of atoms?",
+            "only one kind of atom"
+          ],
+          "method": [
+            "pure substance"
+          ]
+        },
+        {
+          "label": "1.2",
+          "marks": 2,
+          "question": "Classify salt water as an element, a compound or a mixture.",
+          "answer": "A (homogeneous) mixture.",
+          "accept": [
+            "\\bmixture\\b"
+          ],
+          "method": [
+            "dissolv"
+          ]
+        },
+        {
+          "label": "1.3",
+          "marks": 2,
+          "question": "Name the change of phase from liquid to gas.",
+          "answer": "Evaporation (boiling).",
+          "accept": [
+            "evaporat",
+            "\\bboil"
+          ],
+          "method": [
+            "vapou?r"
+          ]
+        },
+        {
+          "label": "1.4",
+          "marks": 2,
+          "question": "Is air a pure substance? Give a reason.",
+          "answer": "No, air is a mixture of gases.",
+          "accept": [
+            "mixture of (different )?gases",
+            "\\bno\\b.*mixture"
+          ],
+          "method": [
+            "\\bno\\b"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q2",
+      "name": "Question 2: Atomic structure",
+      "max": 10,
+      "parts": [
+        {
+          "label": "2.1",
+          "marks": 2,
+          "question": "Sodium has atomic number 11. How many protons does a sodium atom have?",
+          "answer": "11",
+          "accept": [
+            "\\b11 protons",
+            "protons (is|=) 11",
+            "has 11\\b"
+          ],
+          "method": [
+            "atomic number"
+          ]
+        },
+        {
+          "label": "2.2",
+          "marks": 2,
+          "question": "How many neutrons are in an atom of sodium-23?",
+          "answer": "12",
+          "accept": [
+            "\\b12 neutrons",
+            "23 ?- ?11 ?= ?12",
+            "neutrons (is|=) 12"
+          ],
+          "method": [
+            "23 ?- ?11"
+          ]
+        },
+        {
+          "label": "2.3",
+          "marks": 3,
+          "question": "Write the sp-notation (electron configuration) for sodium.",
+          "answer": "1s² 2s² 2p⁶ 3s¹",
+          "accept": [
+            "1s\\^?22s\\^?22p\\^?63s\\^?1",
+            "1s²2s²2p⁶3s¹"
+          ],
+          "method": [
+            "1s\\^?22s\\^?2"
+          ]
+        },
+        {
+          "label": "2.4",
+          "marks": 1,
+          "question": "What is the charge on a proton?",
+          "answer": "Positive (+1).",
+          "accept": [
+            "positive",
+            "\\+1"
+          ],
+          "method": []
+        },
+        {
+          "label": "2.5",
+          "marks": 2,
+          "question": "Define isotopes.",
+          "answer": "Atoms of the same element with the same number of protons but different numbers of neutrons.",
+          "accept": [
+            "same (number of )?protons.*different (number of )?neutrons",
+            "different (number of )?neutrons.*same (number of )?protons"
+          ],
+          "method": [
+            "same element",
+            "different (number of )?neutrons"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q3",
+      "name": "Question 3: Chemical change",
+      "max": 8,
+      "parts": [
+        {
+          "label": "3.1",
+          "marks": 3,
+          "question": "Balance the equation: H₂ + O₂ → H₂O",
+          "answer": "2H₂ + O₂ → 2H₂O",
+          "accept": [
+            "2h2\\+o2(->|→|=)2h2o",
+            "2h₂\\+o₂(->|→|=)2h₂o"
+          ],
+          "method": [
+            "2h2o|2h₂o"
+          ]
+        },
+        {
+          "label": "3.2",
+          "marks": 2,
+          "question": "Calculate the molar mass of water (H = 1, O = 16).",
+          "answer": "18 g·mol⁻¹",
+          "accept": [
+            "(?<![\\d.])18 ?g",
+            "=18(?![\\d.])"
+          ],
+          "method": [
+            "2 ?\\(1\\) ?\\+ ?16|1 ?\\+ ?1 ?\\+ ?16|2 ?x ?1 ?\\+ ?16"
+          ]
+        },
+        {
+          "label": "3.3",
+          "marks": 3,
+          "question": "State the law of conservation of mass.",
+          "answer": "In a closed system, mass is neither created nor destroyed in a chemical reaction.",
+          "accept": [
+            "(neither|not) (be )?created nor destroyed",
+            "mass of (the )?reactants (is )?equals? (to )?(the )?mass of (the )?products"
+          ],
+          "method": [
+            "mass (stays|remains) the same",
+            "closed system"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q4",
+      "name": "Question 4: Motion",
+      "max": 14,
+      "parts": [
+        {
+          "label": "4.1",
+          "marks": 3,
+          "question": "A car travels 100 m in 20 s. Calculate its average speed.",
+          "answer": "5 m·s⁻¹",
+          "accept": [
+            "=5m/s",
+            "=5m\\.s",
+            "=5ms",
+            "speed=5(?![\\d.])"
+          ],
+          "method": [
+            "100/20|100÷20"
+          ]
+        },
+        {
+          "label": "4.2",
+          "marks": 4,
+          "question": "A car speeds up from rest to 20 m·s⁻¹ in 4 s. Calculate its acceleration.",
+          "answer": "5 m·s⁻²",
+          "accept": [
+            "a=5m/s",
+            "a=5ms",
+            "=5m/s\\^?2",
+            "=5m\\.s"
+          ],
+          "method": [
+            "\\(20-0\\)/4|20/4|δv/δt|v/t"
+          ]
+        },
+        {
+          "label": "4.3",
+          "marks": 3,
+          "question": "Explain the difference between distance and displacement.",
+          "answer": "Distance is a scalar (total path length); displacement is a vector (change in position, with direction).",
+          "accept": [
+            "displacement.*(vector|direction).*distance.*scalar",
+            "distance.*scalar.*displacement.*(vector|direction)"
+          ],
+          "method": [
+            "displacement.*(vector|direction)",
+            "distance.*(scalar|total)"
+          ]
+        },
+        {
+          "label": "4.4",
+          "marks": 2,
+          "question": "Name the SI unit of force.",
+          "answer": "The newton (N).",
+          "accept": [
+            "newton"
+          ],
+          "method": []
+        },
+        {
+          "label": "4.5",
+          "marks": 2,
+          "question": "Name an instrument used to measure time in a motion experiment.",
+          "answer": "Ticker timer or stopwatch.",
+          "accept": [
+            "ticker",
+            "stop ?watch"
+          ],
+          "method": [
+            "timer"
+          ]
+        }
+      ]
+    }
+  ]
+}

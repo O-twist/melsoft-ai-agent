@@ -1040,3 +1040,85 @@ details[open] > summary .chev { transform: rotate(90deg); }
   .home-grid { grid-template-columns: 340px minmax(0, 1fr); align-items: start; }
   .quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* ---------- memo, rubric and scripts: read before the Planner plans ---------- */
+.materials { display: grid; gap: 14px; scroll-margin-top: 72px; }
+.materials-gate { box-shadow: 0 0 0 2px var(--accent); }
+.materials-tabs { justify-self: start; flex-wrap: wrap; }
+.decide-go { background: var(--accent-wash); }
+.go-note { display: grid; gap: 6px; margin-top: 10px; font-size: 12.5px; }
+.go-note textarea { width: 100%; resize: vertical; font: inherit; font-size: 13.5px; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink); }
+.go-note textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.mat-memo { max-width: 92ch; font-size: 13.5px; line-height: 1.55; display: grid; gap: 8px; }
+.mat-memo h3 { font-size: 15px; font-weight: 650; }
+.mat-memo h4 { font-size: 13.5px; font-weight: 650; margin-top: 6px; }
+.mat-memo ul { display: grid; gap: 4px; margin: 0; padding-left: 20px; list-style: disc; }
+.mat-rubric { display: grid; gap: 14px; max-width: 100ch; font-size: 13.5px; }
+.mat-task { line-height: 1.5; }
+.mat-crit h4 { font-size: 13.5px; font-weight: 650; margin-bottom: 6px; }
+.mat-crit dl { display: grid; gap: 4px; }
+.mat-crit dl > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; padding: 6px 10px; border-radius: 8px; background: var(--well); }
+.mat-crit dt { font-weight: 650; }
+.mat-scripts { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.mat-list { list-style: none; display: grid; gap: 2px; max-height: 520px; overflow: auto; }
+.mat-list button { width: 100%; text-align: left; display: grid; gap: 1px; padding: 7px 10px; border: 0; border-radius: 8px; background: none;
+  color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+.mat-list button:hover { background: var(--well); }
+.mat-list button.on { background: var(--accent-wash); }
+.mat-list .flag { margin-top: 2px; }
+.mat-read { display: grid; gap: 10px; min-width: 0; }
+.mat-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+.mat-step { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.mat-read .essay { max-height: 520px; overflow: auto; }
+.mat-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.mat-photos figure { display: grid; gap: 4px; }
+.mat-photos img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--well); }
+@media (max-width: 800px) {
+  .mat-scripts { grid-template-columns: minmax(0, 1fr); }
+  .mat-list { max-height: 220px; }
+}
+
+/* What is being marked: essays, each subject test and the practical. Wraps rather than overflowing on a phone. */
+.goal-top .seg { flex-wrap: wrap; flex: 0 1 auto; max-width: 100%; }
+
+/* The other subjects, in a drop-down that sits in the segmented control beside the English essay. */
+.seg-select { position: relative; display: inline-flex; align-items: center; border-radius: 8px; color: var(--ink-2); }
+.seg-select select {
+  appearance: none; -webkit-appearance: none; height: 30px; padding: 0 28px 0 12px; border: 0; border-radius: 8px;
+  background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer;
+}
+.seg-select select:disabled { cursor: default; opacity: 0.7; }
+.seg-select svg { position: absolute; right: 9px; pointer-events: none; transform: rotate(90deg); }
+.seg-select.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.seg-select select option { color: var(--ink); background: var(--surface); font-weight: 400; }
+
+/* Allowing a script whose writer is not on the class list. */
+.decide-add { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.decide-add label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.decide-add label small { font-weight: 400; color: var(--ink-2); }
+.decide-add input { height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); padding: 0 10px; font: inherit; font-size: 13px; min-width: 0; }
+.decide-add .decide-actions { margin-top: 2px; }
+.link-btn { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.link-btn:disabled { color: inherit; cursor: default; }
+
+/* Taking photos with the camera. */
+.camera {
+  position: fixed; z-index: 41; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(720px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto;
+  display: grid; gap: 14px; padding: 18px; border-radius: 16px; background: var(--surface);
+  border: 1px solid var(--border); box-shadow: var(--shadow-pop); animation: fade 0.15s ease;
+}
+.camera-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.camera-head h2 { font-size: 18px; font-weight: 650; }
+.camera-head p { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.camera-view { position: relative; border-radius: 12px; overflow: hidden; background: #0b0b0b; aspect-ratio: 4 / 3; }
+.camera-view video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.camera-view.flash::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0.6; }
+.camera-wait { position: absolute; inset: 0; display: grid; place-items: center; color: #d6d6d6; font-size: 13px; }
+.camera-problem { display: grid; gap: 10px; justify-items: start; padding: 14px; border-radius: 12px; background: var(--serious-wash); font-size: 13.5px; }
+.camera-shots { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; overflow-x: auto; }
+.camera-shots li { position: relative; flex: none; }
+.camera-shots img { width: 72px; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.camera-shots .icon-btn { position: absolute; top: 3px; right: 3px; background: var(--surface); }
+.camera-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+.camera-actions { display: flex; gap: 8px; flex-wrap: wrap; }

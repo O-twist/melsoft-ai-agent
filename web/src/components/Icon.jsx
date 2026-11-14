@@ -3,6 +3,18 @@ const PATHS = {
   logo: <path d="m7 12.5 3.2 3.2L17 8.5" />,
   play: <path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none" />,
   check: <path d="M20 6 9 17l-5-5" />,
+  camera: (
+    <>
+      <path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </>
+  ),
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="m6 6 12 12" />
+    </>
+  ),
   x: <path d="M18 6 6 18M6 6l12 12" />,
   alert: (
     <>

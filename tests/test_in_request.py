@@ -131,7 +131,7 @@ class InOneRequest(unittest.TestCase):
             server.current["run"] = None
             code, state = self.request("/api/state")
             self.assertEqual((code, state["status"]), (200, "idle"))
-            self.assertEqual(state["features"], {"practical": True, "uploads": False, "replay": True})
+            self.assertEqual({k: state["features"][k] for k in ("practical", "uploads", "replay")}, {"practical": True, "uploads": False, "replay": True})
             bongani = next(row for row in state["risk"]["learners"] if row["id"] == "E10")
             self.assertEqual((bongani["risk"], bongani["band"], bongani["overall"], bongani["result"]), (53, "High", 57, "Pass"))
             # A second run straight after the first is not refused as "already running".

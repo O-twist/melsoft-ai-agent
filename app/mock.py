@@ -4,22 +4,33 @@ import os
 import re
 from pathlib import Path
 
+from . import tools
+
 MISSPELT = r"\b(alot|becuase|thier|wich|definately|recieve|untill|freind|dont|cant|then harm|then bad)\b"
 
 
-def _facts(text):
-    """What the heuristics can measure in an essay."""
+def _on_topic(text, terms):
+    """How far an answer uses the topic's own words (from the teacher's memo, else the task), from 0 to 1."""
+    hits = 0
+    for term in terms or []:
+        stem = term[:-1] if term.endswith("y") and len(term) > 4 else term  # technology -> technolog(y|ies|ical)
+        hits += len(re.findall(re.escape(stem), text, re.I))
+    return min(1.0, hits / 4)
+
+
+def _facts(text, terms=()):
+    """What the heuristics can measure in an essay. terms: the words that show it is on the topic that was set."""
     return {
         "words": len(re.findall(r"[A-Za-z']+", text)),
         "paras": len([p for p in re.split(r"\n\s*\n", text) if p.strip()]),
         "sents": [s.strip() for s in re.split(r"(?<=[.!?])\s+", text.replace("\n", " ")) if s.strip()],
         "slips": len(re.findall(r"\bi\b", text)) + len(re.findall(MISSPELT, text, re.I)),
-        "on_topic": min(1.0, len(re.findall(r"technolog|phone|internet|online|social media", text, re.I)) / 4),
+        "on_topic": _on_topic(text, terms),
     }
 
 
 def _score(text, rubric, nudge=0):
-    f = _facts(text)
+    f = _facts(text, tools.topic_terms(rubric))
     n, paras, sents, errors = f["words"], f["paras"], f["sents"], f["slips"]
     quality = {
         "content": (0.6 * min(1, n / 230) + 0.4 * min(1, paras / 5)) * (0.25 + 0.75 * f["on_topic"]),
@@ -37,6 +48,130 @@ def _score(text, rubric, nudge=0):
             "reason": f"Heuristic estimate for {c['name'].lower()} ({n} words, {paras} paragraphs, {errors} language slips).",
         }
     return scores
+
+
+# ---- question-paper tests (Mathematics, Physical Sciences, History) ------------------------------------
+
+def _maths_text(text):
+    """An answer as the patterns in a test rubric expect it: lower case, superscripts and signs spelt plainly."""
+    t = str(text).lower()
+    for old, new in (("²", "^2"), ("³", "^3"), ("⁶", "^6"), ("−", "-"), ("–", "-"),
+                     ("×", "x"), ("→", "->"), ("’", "'")):
+        t = t.replace(old, new)
+    return re.sub(r"(?<=\d),(?=\d)", ".", t)  # a decimal comma is a decimal point
+
+
+def _matches(patterns, answer):
+    """The patterns that fit the answer as written (spaces kept) or with every space taken out."""
+    spaced = re.sub(r"\s+", " ", _maths_text(answer))
+    compact = re.sub(r"\s+", "", spaced)
+    return [p for p in patterns or [] if re.search(p, spaced) or re.search(p, compact)]
+
+
+def test_answers(text):
+    """A test script split into its numbered parts: {"1.1": "the learner's answer", ...}."""
+    answers, label = {}, None
+    for line in str(text).splitlines():
+        m = re.match(r"\s*(\d+\.\d+)\s*[).:-]?\s+(.*)", line)
+        if m:
+            label = m.group(1)
+            answers[label] = m.group(2).strip()
+        elif label and line.strip() and not re.match(r"\s*question\s+\d+\s*$", line, re.I):
+            answers[label] += " " + line.strip()
+    return answers
+
+
+def part_score(part, answer):
+    """(marks, why) for one numbered part, from the memo's patterns: the right answer, method marks, or points."""
+    marks = int(part.get("marks") or 0)
+    if not answer:
+        return 0, "not answered"
+    if part.get("points"):
+        got = _matches(part["points"], answer)
+        each = int(part.get("each") or 1)
+        return min(marks, each * len(got)), f"{len(got)} of the memo's points"
+    if _matches(part.get("accept"), answer):
+        return marks, "matches the memo"
+    if _matches(part.get("method"), answer):
+        return (max(1, marks // 2) if marks > 1 else 0), "right method, wrong answer"
+    return 0, "does not match the memo"
+
+
+def _test_score(text, rubric):
+    """Marks for one answer script, part by part against the memo, with a learner's own line as evidence."""
+    answers = test_answers(text)
+    first = next((line.strip() for line in str(text).splitlines() if len(tools._norm(line)) >= 8), "")
+    scores = {}
+    for c in rubric["criteria"]:
+        total, notes, lines = 0, [], []
+        for part in c.get("parts") or []:
+            got, why = part_score(part, answers.get(part["label"], ""))
+            total += got
+            notes.append(f"{part['label']} {got}/{part['marks']} ({why})")
+            if answers.get(part["label"]):
+                lines.append(answers[part["label"]])
+        quote = " ".join(max(lines, key=len, default="").split()[:12])
+        scores[c["id"]] = {
+            "score": max(0, min(c["max"], total)),
+            "evidence": quote if len(tools._norm(quote)) >= 8 else first,
+            "reason": ("Against the memo: " + "; ".join(notes) + ".") if notes else "No parts listed for this question.",
+        }
+    return scores
+
+
+def _topic(name):
+    """'Question 2: Equations and inequalities' -> 'Equations and inequalities'."""
+    return name.split(": ", 1)[-1]
+
+
+def _catch_up_test(c, outcomes, rubric):
+    """A catch-up plan for one learner on a subject test, from the question they lost most marks on."""
+    first, text, scores = c["first_name"], c["text"], c["scores"]
+    subject = (rubric.get("subject") or "the subject").replace("Grade 10 ", "")
+    if not scores:
+        return {
+            "id": c["id"],
+            "why": (f"{first} has no {subject} test on record that could be marked, so there is no evidence yet of what "
+                    f"{first} can do. The gap may be about time or confidence more than skill, which is worth a quiet conversation."),
+            "evidence": "",
+            "strength": "",
+            "steps": [{"outcome": o["id"], "minutes": 25,
+                       "activity": f"Answer this part of the test under test conditions and hand it in: {o['text']}"}
+                      for o in _three(list(outcomes), outcomes)],
+            "check": f"A complete answer script from {first} that can be marked against the memo.",
+        }
+    order = sorted(scores, key=lambda s: s["score"] / s["max"])
+    weak, best = order[0], order[-1]
+    parts = next((x.get("parts") or [] for x in rubric["criteria"] if x["id"] == weak["id"]), [])
+    answers = test_answers(text)
+    marked = [(p, *part_score(p, answers.get(p["label"], ""))) for p in parts]
+    lost = [p["label"] for p, got, _ in marked if got < p["marks"]]
+    why = (f"{first} lost most marks on {_topic(weak['name']).lower()} ({weak['score']}/{weak['max']})"
+           + (f", in parts {', '.join(lost)}" if lost else "") + ". ")
+    if any(why_part == "right method, wrong answer" for _, _, why_part in marked):
+        why += "The working shows the right method in places but the final answers slip, so careful checking will win marks back."
+    else:
+        why += "The memo's method is not there yet, so this needs re-teaching before more practice."
+    picks = [o for o in outcomes if weak["id"] in o["criteria"]][:2]
+    for s in order[1:]:
+        picks += [o for o in outcomes if s["id"] in o["criteria"] and o not in picks][:1]
+    activities = [
+        (f"Redo parts {', '.join(lost) or 'of this question'} with the memo's worked answers open, copying each step "
+         "and saying why it follows.", 20),
+        ("Cover the memo and do the same parts again from scratch, then mark them yourself and correct every slip "
+         "in a different colour.", 20),
+        ("Do three fresh questions of the same kind from the textbook and check them with a study partner.", 15),
+    ]
+    evidence = " ".join((answers.get(lost[0]) or "" if lost else "").split()[:12])
+    return {
+        "id": c["id"],
+        "why": why,
+        "evidence": evidence if len(tools._norm(evidence)) >= 8 else _quote(text),
+        "strength": (f"{_topic(best['name'])} is {first}'s strongest area at {best['score']}/{best['max']}, "
+                     "so the plan builds on something that already works."),
+        "steps": [{"outcome": o["id"], "activity": a, "minutes": m} for o, (a, m) in zip(_three(picks, outcomes), activities)],
+        "check": f"Ask {first} to redo parts {', '.join(lost) or 'of the weakest question'} without the memo, and look for full marks on each.",
+    }
 
 
 # ---- the Coach: catch-up plans -----------------------------------------------------------------
@@ -104,7 +239,7 @@ def _three(picks, outcomes):
 def _catch_up(c, outcomes, rubric):
     """A catch-up plan for one learner, from what the heuristics can measure in the essay and the marks."""
     first, text, scores = c["first_name"], c["text"], c["scores"]
-    f = _facts(text)
+    f = _facts(text, tools.topic_terms(rubric))
     if not scores:  # nothing could be marked: the first job is a complete draft
         handed_in = f"only {f['words']} words" if f["words"] else "nothing"
         before = re.search(r"\d", c["previous"])
@@ -171,6 +306,18 @@ def _catch_up(c, outcomes, rubric):
 # ---- the Designer: the next lesson ---------------------------------------------------------------
 
 TOPIC = "'Technology has done more good than harm for young South Africans'"
+# The exercise bank below is written for the sample class's topic (and the PC practical). For any other task the
+# mock builds its exercises from the outcome's own words instead, so a teacher's own class never gets this topic.
+
+
+def _fits(outcome_id, task=""):
+    """Whether the banked text was written for the task that was set (the PC practical's always is)."""
+    return outcome_id.startswith("H") or not task or TOPIC.strip("'").lower() in task.lower()
+
+
+def _bank(outcome_id, level, task=""):
+    """A banked (task, model answer) for an outcome, only if the bank was written for the task that was set."""
+    return _EXERCISES.get(outcome_id, {}).get(level) if _fits(outcome_id, task) else None
 # Exercises the mock Designer can set, by the outcome each practises and its level: (task, model answer).
 _EXERCISES = {
     "W1": {
@@ -494,13 +641,14 @@ def _lesson(brief, outcomes):
     wanted = [(a, "support"), (a, "core"), (b, "core"), (b, "extension")] if a is not b else [(a, "support"), (a, "core"), (a, "extension")]
     exercises = []
     for n, (o, level) in enumerate(wanted, 1):
-        task, answer = _EXERCISES.get(o["id"], {}).get(level) or _TEMPLATES[level](o["text"])
+        task, answer = _bank(o["id"], level, brief.get("task", "")) or _TEMPLATES[level](o["text"])
         exercises.append({"id": f"X{n}", "outcome": o["id"], "level": level, "task": task, "answer": answer})
     ids = [e["id"] for e in exercises]
     work = brief.get("work", "essay")
-    title, exit_ticket = _LESSONS.get(a["id"]) or (
-        f"Working on {weakest['name'].lower()}",
-        f"Write down one thing you will do differently in your next {'essay' if work == 'essay' else 'practical'} "
+    banked = _LESSONS.get(a["id"]) if _fits(a["id"], brief.get("task", "")) else None
+    title, exit_ticket = banked or (
+        f"Working on {weakest['name'].split(': ', 1)[-1].lower()}",
+        f"Write down one thing you will do differently in your next {'essay' if work == 'essay' else 'test' if work == 'answer script' else 'practical'} "
         "because of today's lesson, and one question you still have.")
     behind = (f", and {brief['flagged']} learner{' was' if brief['flagged'] == 1 else 's were'} flagged as falling behind"
               if brief["flagged"] else "")
@@ -556,7 +704,7 @@ def _align_lesson(d):
             chosen.append(pick["id"])
         if any(e["outcome"] == pick["id"] and e["level"] == "support" for e in exercises):
             continue
-        task, answer = _EXERCISES.get(pick["id"], {}).get("support") or _TEMPLATES["support"](pick["text"])
+        task, answer = _bank(pick["id"], "support", d.get("task", "")) or _TEMPLATES["support"](pick["text"])
         exercises.append({"id": _next_exercise_id(exercises), "outcome": pick["id"], "level": "support", "task": task, "answer": answer})
     support_ids = [e["id"] for e in exercises if e["level"] == "support"]
     if len(support_ids) > 1:  # the phase script named only the original support exercise
@@ -655,10 +803,9 @@ def respond(task, d):
         ]
         understanding = [f"Mark every {d.get('work', 'essay')} against the rubric and double-check the marks."]
         understanding.append("No messages to learners, as asked." if no_send else "Give each learner feedback.")
-        steps = [
-            "Check every submission and set aside any that cannot be marked",
-        ] if not any(s.get("source") == "script" for s in d["inventory"]) else [
+        steps = ([
             "Mark the transcribed handwritten scripts exactly like the typed essays",
+        ] if any(s.get("source") == "script" for s in d["inventory"]) else []) + [
             "Check every submission and set aside any that cannot be marked",
             "Mark in batches against the rubric, quoting evidence",
             "Second-mark every essay blind and send disagreements back",
@@ -683,11 +830,13 @@ def respond(task, d):
             "steps": steps,
         }
     if task == "support":
+        if d["rubric"].get("kind") == "test":
+            return {"plans": [_catch_up_test(c, d["outcomes"], d["rubric"]) for c in d["cases"]]}
         if d["rubric"].get("kind") == "practical":
             return {"plans": [_catch_up_practical(c, d["outcomes"]) for c in d["cases"]]}
         return {"plans": [_catch_up(c, d["outcomes"], d["rubric"]) for c in d["cases"]]}
     if task == "lesson":
-        return _lesson({**d["brief"], "work": d.get("work", "essay")}, d["outcomes"])
+        return _lesson({**d["brief"], "work": d.get("work", "essay"), "task": d.get("task", "")}, d["outcomes"])
     if task == "try":
         return {"attempts": [_attempt(e, d["outcomes"]) for e in d["exercises"]]}
     if task == "fix_exercises":
@@ -704,6 +853,9 @@ def respond(task, d):
     if task in ("mark", "review", "remark") and d["rubric"].get("kind") == "practical":
         return {"marks": [{"id": e["id"], "scores": _practical_score(e["text"], d["rubric"]), "response": "revised",
                            "note": "Re-read the attempt log against the band descriptors."} for e in d["essays"]]}
+    if task in ("mark", "review", "remark") and d["rubric"].get("kind") == "test":
+        return {"marks": [{"id": e["id"], "scores": _test_score(e["text"], d["rubric"]), "response": "revised",
+                           "note": "Re-marked every part against the memo."} for e in d["essays"]]}
     if task in ("mark", "review"):
         return {"marks": [
             {"id": e["id"], "scores": _score(e["text"], d["rubric"], nudge=(sum(map(ord, e["id"])) % 3 - 1) if task == "review" else 0)}
@@ -723,20 +875,26 @@ def respond(task, d):
         for it in d["items"]:
             best = max(it["scores"], key=lambda s: s["score"] / s["max"])
             weak = min(it["scores"], key=lambda s: s["score"] / s["max"])
-            practical = d.get("work", "essay") != "essay"
-            advice = ("Say the build order aloud before you start, and check each slot before you let go of a part."
-                      if practical else "Plan one clear idea per paragraph and proofread aloud before you hand in.")
-            step = ("do the build once more in the virtual lab without a hint and note your time."
-                    if practical else "rewrite your weakest paragraph using this advice and bring it to class.")
+            work = d.get("work", "essay")
+            practical, test = work == "practical attempt", work == "answer script"
+            if practical:
+                advice = "Say the build order aloud before you start, and check each slot before you let go of a part."
+                step = "do the build once more in the virtual lab without a hint and note your time."
+            elif test:
+                advice = "Write out every step of your working, and check each answer against the question before you move on."
+                step = f"redo the {_topic(weak['name']).lower()} questions with the memo, then try them again without it."
+            else:
+                advice = "Plan one clear idea per paragraph and proofread aloud before you hand in."
+                step = "rewrite your weakest paragraph using this advice and bring it to class."
             body = (
-                f"Hi {it['first_name']},\n\nThank you for your {'PC assembly practical' if practical else 'essay'}. "
+                f"Hi {it['first_name']},\n\nThank you for your {'PC assembly practical' if practical else 'test' if test else 'essay'}. "
                 f"You scored {it['total']}/{it['max']}.\n\n"
                 f"What worked: your strongest area was {best['name'].lower()} ({best['score']}/{best['max']}). "
                 f"I noticed this line in particular: \"{best['evidence']}\".\n\n"
                 f"To improve: focus on {weak['name'].lower()} ({weak['score']}/{weak['max']}). "
                 f"{advice}\n\nNext step: {step}\n\nKeep going!"
             )
-            noun = "practical" if practical else "essay"
+            noun = "practical" if practical else "test" if test else "essay"
             msgs.append({"id": it["id"], "subject": f"Your {noun} feedback: {it['total']}/{it['max']}", "body": body})
         return {"messages": msgs}
     if task == "report":
@@ -744,7 +902,8 @@ def respond(task, d):
         weakest = min(d["criteria_avg"], key=lambda c: c["avg_pct"]) if d["criteria_avg"] else None
         return {
             "summary": f"{len(rows)} {d.get('work', 'essay')}s marked. Class average {d['average']}/{d['max']}.",
-            "strengths": ["Most learners finish the build with every part in its slot." if d.get("work", "essay") != "essay"
+            "strengths": ["Most learners finish the build with every part in its slot." if d.get("work", "essay") == "practical attempt"
+                          else "Most learners attempt every question and show their working." if d.get("work") == "answer script"
                           else "Most learners take a clear position on the topic."],
             "gaps": [f"Weakest area across the class: {weakest['name']} ({weakest['avg_pct']}%)."] if weakest else [],
             "next_lesson": [f"Spend the next lesson on {weakest['name'].lower()}, using two anonymised class examples."] if weakest else [],

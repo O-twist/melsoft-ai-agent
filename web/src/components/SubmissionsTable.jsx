@@ -27,7 +27,7 @@ export default function SubmissionsTable({ subs, rubric, behind = [], selectedId
         <table className="subs">
           <thead>
             <tr>
-              <th scope="col" className="id-col">{rubric.kind === "practical" ? "Attempt" : "Essay"}</th>
+              <th scope="col" className="id-col">{rubric.kind === "practical" ? "Attempt" : rubric.kind === "test" ? "Script" : "Essay"}</th>
               <th scope="col">Learner</th>
               <th scope="col" className="n opt">Marker</th>
               <th scope="col" className="n opt">Reviewer</th>

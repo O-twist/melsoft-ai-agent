@@ -2,9 +2,12 @@ import Icon from "./Icon.jsx";
 import { Disc } from "./Badge.jsx";
 import { clock, plural } from "../format.js";
 
-function RunState({ status, elapsed, offline }) {
+function RunState({ status, waiting, elapsed, offline }) {
   if (offline) {
     return <span className="chip"><Disc tone="serious" icon="alert" />Reconnecting…</span>;
+  }
+  if (status === "running" && waiting) {
+    return <span className="chip"><Disc tone="accent" icon="user" /><span className="chip-words">Waiting for you to check the materials</span></span>;
   }
   if (status === "running") {
     return <span className="chip"><span className="live-dot" /><span className="chip-words">Working ·</span><span className="num">{clock(elapsed)}</span></span>;

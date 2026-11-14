@@ -18,6 +18,36 @@ export const PRACTICAL_EXAMPLES = [
   },
 ];
 
+/* A question-paper test in another subject (Mathematics, Physical Sciences, History), marked against its memo. */
+export const testGoal = (label) =>
+  `Mark the Grade 10 ${label} test against the memo and send every learner personalised feedback.`;
+
+/** The goal to start from for whatever is being marked. */
+export function goalFor(assessment, tests = []) {
+  if (assessment === "practical") return PRACTICAL_GOAL;
+  const test = tests.find((t) => t.key === assessment);
+  return test ? testGoal(test.label) : DEFAULT_GOAL;
+}
+
+function testExamples(label) {
+  const goal = testGoal(label);
+  return [
+    { label: "Mark and send feedback", goal },
+    {
+      label: "Marks only, no messages",
+      goal: `Mark the Grade 10 ${label} test against the memo. Do not send feedback to learners: I only want the mark sheet and the class report.`,
+    },
+    {
+      label: "Who is falling behind?",
+      goal: `${goal} Then tell me who is falling behind, work out why, and prepare a catch-up plan for each of them.`,
+    },
+    {
+      label: "The whole job",
+      goal: `${goal} Tell me who is falling behind, with a catch-up plan for each, and draft a 45-minute lesson on the class's weakest area with exercises.`,
+    },
+  ];
+}
+
 /* Goals that lead to visibly different plans, and bring different agents into the team. */
 const EXAMPLES = [
   { label: "Mark and send feedback", goal: DEFAULT_GOAL },
@@ -44,11 +74,26 @@ const EXAMPLES = [
 ];
 
 export default function GoalBar({
-  goal, onGoal, injectFault, onInjectFault, running, hasRun, onStart, error,
-  assessment = "essay", onAssessment, practicalAvailable = false, uploads = true,
+  goal, onGoal, injectFault, onInjectFault, reviewFirst = true, onReviewFirst = () => {}, running, hasRun, onStart, error,
+  assessment = "essay", onAssessment, practicalAvailable = false, uploads = true, tests = [],
 }) {
+  const test = tests.find((t) => t.key === assessment);
   // The handwritten-scripts goal needs photos to be uploaded first, which a serverless deployment cannot keep.
-  const examples = assessment === "practical" ? PRACTICAL_EXAMPLES : EXAMPLES.filter((ex) => uploads || ex.label !== "Handwritten scripts too");
+  const examples = assessment === "practical" ? PRACTICAL_EXAMPLES : test ? testExamples(test.label)
+    : EXAMPLES.filter((ex) => uploads || ex.label !== "Handwritten scripts too");
+  const kinds = [["essay", "English essay"], ...(practicalAvailable ? [["practical", "PC assembly practical"]] : [])];
+  const pick = (key) => (
+    <button
+      key={key}
+      type="button"
+      className={assessment === key ? "on" : ""}
+      aria-pressed={assessment === key}
+      disabled={running}
+      onClick={() => onAssessment(key)}
+    >
+      {kinds.find(([k]) => k === key)[1]}
+    </button>
+  );
   const ready = !running && goal.trim().length > 0;
   const box = useRef(null);
 
@@ -73,20 +118,24 @@ export default function GoalBar({
     <section className="card goal">
       <div className="goal-top">
         <label className="goal-label" htmlFor="goal">What should your colleague do?</label>
-        {practicalAvailable && (
+        {(tests.length > 0 || practicalAvailable) && (
           <div className="seg" role="group" aria-label="What is being marked">
-            {[["essay", "Essays"], ["practical", "PC assembly practical"]].map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={assessment === key ? "on" : ""}
-                aria-pressed={assessment === key}
-                disabled={running}
-                onClick={() => onAssessment(key)}
-              >
-                {label}
-              </button>
-            ))}
+            {pick("essay")}
+            {tests.length > 0 && (
+              <label className={`seg-select ${test ? "on" : ""}`}>
+                <span className="sr-only">Other subjects</span>
+                <select
+                  value={test ? test.key : ""}
+                  disabled={running}
+                  onChange={(e) => e.target.value && onAssessment(e.target.value)}
+                >
+                  <option value="" disabled>Other subjects</option>
+                  {tests.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+                <Icon name="chevron" size={13} />
+              </label>
+            )}
+            {practicalAvailable && pick("practical")}
           </div>
         )}
       </div>
@@ -98,7 +147,7 @@ export default function GoalBar({
         disabled={running}
         onChange={(e) => onGoal(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="For example: mark these essays against the rubric and send every learner feedback."
+        placeholder="For example: mark these scripts against the memo and send every learner feedback."
       />
       <div className="goal-row">
         <div className="examples">
@@ -117,6 +166,14 @@ export default function GoalBar({
           ))}
         </div>
         <div className="goal-actions">
+          <label className="switch">
+            <input type="checkbox" checked={reviewFirst} disabled={running} onChange={(e) => onReviewFirst(e.target.checked)} />
+            <span className="switch-track" />
+            <span className="switch-text">
+              Check materials first
+              <small>See the memo, rubric and scripts before it plans</small>
+            </span>
+          </label>
           <label className="switch">
             <input type="checkbox" checked={injectFault} disabled={running} onChange={(e) => onInjectFault(e.target.checked)} />
             <span className="switch-track" />
