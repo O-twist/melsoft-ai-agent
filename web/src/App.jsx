@@ -97,6 +97,7 @@ export default function App() {
   const [weekHold, setWeekHold] = useState(heldWeek);
   const [station, setStation] = useState(null);
   const [partId, setPartId] = useState("");
+  const [rescueFor, setRescueFor] = useState(null); // the learner a rescue run was started for: { id, name, after: the run before it }
   const closeDrawer = useCallback(() => setOpenId(null), []);
 
   // Joining a run that is already under way (a reload, or a second window): show the goal it was given.
@@ -116,6 +117,28 @@ export default function App() {
     const id = station.kind === "windows" ? "windows-station" : station.kind === "model" ? "part-viewer" : "virtual-lab";
     return settleOn(id);
   }, [station]);
+
+  // A rescue run was started from the home screen: when it ends, open that learner's plan, or say why there is none.
+  const runStatus = state?.status;
+  useEffect(() => {
+    if (!rescueFor || !runId || runId === rescueFor.after || runStatus === "running") return;
+    setRescueFor(null);
+    if (runStatus !== "done") {
+      setNotice("");
+      return;
+    }
+    const entry = (state.support?.learners || []).find((e) => e.id === rescueFor.id);
+    if (entry?.status === "ready") {
+      setNotice(`Rescue plan ready for ${rescueFor.name}.`);
+      setView("desk");
+      setOpenId(rescueFor.id);
+    } else if (entry) {
+      setNotice(`The Coach's plan for ${rescueFor.name} failed its checks twice, so it is held for you rather than shown. The warning signs are on the marking desk.`);
+    } else {
+      setNotice(`The Coach found no warning sign in this work for ${rescueFor.name}, so there is no rescue plan to build. Their score report lists the next steps.`);
+    }
+    // Keyed on the run ending, not on every poll.
+  }, [runId, runStatus, rescueFor]);
 
   if (!state) return <Splash offline={offline} problem={problem} />;
 
@@ -201,7 +224,7 @@ export default function App() {
     const practicalPct = row.practical?.marked ? row.practical.percent : 0;
     const which = practicalOn && practicalPct < theoryPct ? "practical" : "essay";
     const existing = (state.support?.learners || []).find((entry) => entry.id === row.id);
-    if (existing && (state.assessment === which || state.status === "done")) {
+    if (existing && state.assessment === which && !running) {
       setView("desk");
       setOpenId(row.id);
       return;
@@ -215,13 +238,15 @@ export default function App() {
     setAssessment(which);
     setGoal(goalText);
     setError("");
-    setNotice(`Rescue plan started for ${row.learner}. The Coach and the Designer are on this run.`);
+    setNotice(`Building a rescue plan for ${row.learner}. The Coach and the Designer are on this run.`);
+    setRescueFor({ id: row.id, name: row.learner, after: state.id });
     try {
       const pages = which === "essay" && scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((page) => page.id) } : null;
       await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
       refresh();
     } catch (e) {
       setNotice("");
+      setRescueFor(null);
       setError(e.message);
     }
   }
@@ -318,7 +343,7 @@ export default function App() {
           <div id="virtual-lab">
             <PCAssembly
               subs={state.subs}
-              focus={station?.kind === "lab" ? station : station?.kind === "model" ? { learnerId: station.learnerId, step: station.target, nonce: station.nonce } : null}
+              focus={station?.kind === "lab" || station?.kind === "model" ? { learnerId: station.learnerId, step: station.target, nonce: station.nonce } : null}
               onViewModel={(id) => {
                 setPartId(id);
                 document.getElementById("part-viewer")?.scrollIntoView({ behavior: "smooth", block: "start" });
