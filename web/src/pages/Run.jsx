@@ -15,6 +15,7 @@ import CorrectionsPanel from "../components/CorrectionsPanel.jsx";
 import IngestReview from "../components/IngestReview.jsx";
 import MaterialsPanel from "../components/MaterialsPanel.jsx";
 import LoopStatus from "../components/LoopStatus.jsx";
+import TeamThinking from "../components/TeamThinking.jsx";
 import { fileUrl } from "../api.js";
 import { headline, steps } from "../progress.js";
 import { clock, plural } from "../format.js";
@@ -29,6 +30,7 @@ const DOWNLOADS = [
 
 const TABS = [
   ["progress", "Progress"],
+  ["thinking", "Team thinking"],
   ["submissions", "Submissions"],
   ["checks", "Self-checks"],
   ["results", "Results"],
@@ -143,6 +145,8 @@ export default function Run({ state, events, go, tab, onTab, onOpen, openId, ref
           </div>
         </>
       )}
+
+      {tab === "thinking" && <TeamThinking state={state} events={events} onOpen={onOpen} />}
 
       {tab === "submissions" && (
         <SubmissionsTable subs={state.subs} rubric={state.rubric} behind={behind} selectedId={openId} onOpen={onOpen} />

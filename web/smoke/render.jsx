@@ -15,6 +15,7 @@ import Lab from "../src/pages/Lab.jsx";
 import Messages from "../src/pages/Messages.jsx";
 import Settings from "../src/pages/Settings.jsx";
 import AppShell from "../src/components/AppShell.jsx";
+import TeamThinking from "../src/components/TeamThinking.jsx";
 import DetailDrawer from "../src/components/DetailDrawer.jsx";
 import { attention, headline, steps } from "../src/progress.js";
 import { examplesFor, goalFor, willHappen } from "../src/goals.js";
@@ -57,6 +58,23 @@ cases.push(
   ["Learners (nothing yet)", <Learners {...idleBase} onOpen={noop} onRescue={noop} notice="" error="" focusId={null} onFocus={noop} />],
   ["Messages (nothing yet)", <Messages {...idleBase} onOpen={noop} />],
 );
+
+// Team thinking: every colleague's panel, on the plain run and on a run with handwritten scripts.
+for (const key of ["PL", "MK", "RV", "MS", "CO", "DS", "CL"]) {
+  cases.push([`Team thinking · ${key}`, <TeamThinking state={state} events={state.events} onOpen={noop} initialAgent={key} />]);
+}
+if (process.argv[4]) {
+  const withScripts = JSON.parse(readFileSync(process.argv[4], "utf8"));
+  cases.push(
+    ["Team thinking · Clerk feedback (scripts)", <TeamThinking state={withScripts} events={withScripts.events} onOpen={noop} initialAgent="CL" />],
+    ["Run · team thinking tab (scripts)", <Run state={withScripts} go={go} refresh={noop} running={false} events={withScripts.events} tab="thinking" onTab={noop} onOpen={noop} openId={null} failure={null} />],
+  );
+  const html = renderToString(<TeamThinking state={withScripts} events={withScripts.events} onOpen={noop} initialAgent="CL" />);
+  for (const want of ["Script S3", "Held for you", "page 2 of 2 is missing", "Read twice", "sure", "Planted fault", "Failed a check"]) {
+    if (!html.includes(want)) { console.log(`FAIL the Clerk's feedback does not show "${want}"`); process.exitCode = 1; }
+  }
+  console.log("clerk feedback checks done");
+}
 
 // A run still going: the headline must count the step it is on, not just say "working".
 if (process.argv[3]) {
