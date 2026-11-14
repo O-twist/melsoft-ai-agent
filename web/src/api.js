@@ -59,7 +59,7 @@ export async function uploadClass(files) {
   return json;
 }
 export const resolveEssay = (id, choice) => post("/api/resolve", { id, choice });
-export const resolveScript = (id, choice, learner = null) => post("/api/resolve", { kind: "script", id, choice, learner });
+export const resolveScript = (id, choice, learner = null, extra = {}) => post("/api/resolve", { kind: "script", id, choice, learner, ...extra });
 export const fileUrl = (name) => `/api/file?name=${encodeURIComponent(name)}`;
 export const pageUrl = (batch, id) => `/api/page?batch=${encodeURIComponent(batch)}&id=${encodeURIComponent(id)}`;
 

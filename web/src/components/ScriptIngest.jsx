@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { pageUrl, samplePages, uploadPages } from "../api.js";
 import Icon from "./Icon.jsx";
 import { Disc } from "./Badge.jsx";
+import CameraCapture from "./CameraCapture.jsx";
 import { plural } from "../format.js";
 
 /**
@@ -15,6 +16,7 @@ export default function ScriptIngest({ scripts, onScripts, injectOcrFault, onInj
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [over, setOver] = useState(false);
+  const [camera, setCamera] = useState(false);
   const picker = useRef(null);
   const pages = scripts?.pages || [];
 
@@ -65,6 +67,9 @@ export default function ScriptIngest({ scripts, onScripts, injectOcrFault, onInj
           <button type="button" className="btn small" disabled={locked} onClick={() => picker.current?.click()}>
             <Icon name="download" size={14} className="flip" />Add photos
           </button>
+          <button type="button" className="btn small" disabled={locked} onClick={() => setCamera(true)}>
+            <Icon name="camera" size={14} />Take photos
+          </button>
           <input
             ref={picker}
             type="file"
@@ -93,7 +98,13 @@ export default function ScriptIngest({ scripts, onScripts, injectOcrFault, onInj
             if (!locked) addFiles([...e.dataTransfer.files]);
           }}
         >
-          {busy ? "Uploading…" : "Drop JPEG or PNG photos here, one page per photo. Without photos, the typed essays on file are marked."}
+          {busy ? "Uploading…" : (
+            <>
+              Drop JPEG or PNG photos here, one page per photo, or{" "}
+              <button type="button" className="link-btn" disabled={locked} onClick={() => setCamera(true)}>take them with your camera</button>.
+              Without photos, the typed essays on file are marked.
+            </>
+          )}
         </div>
       ) : (
         <>
@@ -139,6 +150,7 @@ export default function ScriptIngest({ scripts, onScripts, injectOcrFault, onInj
         </>
       )}
       {error && <p className="form-error" role="alert"><Disc tone="critical" icon="alert" />{error}</p>}
+      {camera && <CameraCapture onPhotos={addFiles} onClose={() => setCamera(false)} />}
     </section>
   );
 }

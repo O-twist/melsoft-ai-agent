@@ -6,7 +6,7 @@ export function clock(seconds) {
 
 export const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** What is being marked, from the rubric: "essay", or "practical attempt" for the PC assembly practical. */
+/** What is being marked, from the rubric: "essay", "practical attempt" for the PC practical, or "answer script" for a subject test. */
 export const workNoun = (rubric) => rubric?.work || "essay";
 export const capital = (text) => `${text[0].toUpperCase()}${text.slice(1)}`;
 

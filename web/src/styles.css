@@ -948,3 +948,48 @@ details[open] > summary .chev { transform: rotate(90deg); }
   .mat-scripts { grid-template-columns: minmax(0, 1fr); }
   .mat-list { max-height: 220px; }
 }
+
+/* What is being marked: essays, each subject test and the practical. Wraps rather than overflowing on a phone. */
+.goal-top .seg { flex-wrap: wrap; flex: 0 1 auto; max-width: 100%; }
+
+/* The other subjects, in a drop-down that sits in the segmented control beside the English essay. */
+.seg-select { position: relative; display: inline-flex; align-items: center; border-radius: 8px; color: var(--ink-2); }
+.seg-select select {
+  appearance: none; -webkit-appearance: none; height: 30px; padding: 0 28px 0 12px; border: 0; border-radius: 8px;
+  background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer;
+}
+.seg-select select:disabled { cursor: default; opacity: 0.7; }
+.seg-select svg { position: absolute; right: 9px; pointer-events: none; transform: rotate(90deg); }
+.seg-select.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.seg-select select option { color: var(--ink); background: var(--surface); font-weight: 400; }
+
+/* Allowing a script whose writer is not on the class list. */
+.decide-add { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.decide-add label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.decide-add label small { font-weight: 400; color: var(--ink-2); }
+.decide-add input { height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); padding: 0 10px; font: inherit; font-size: 13px; min-width: 0; }
+.decide-add .decide-actions { margin-top: 2px; }
+.link-btn { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.link-btn:disabled { color: inherit; cursor: default; }
+
+/* Taking photos with the camera. */
+.camera {
+  position: fixed; z-index: 41; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(720px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow: auto;
+  display: grid; gap: 14px; padding: 18px; border-radius: 16px; background: var(--surface);
+  border: 1px solid var(--border); box-shadow: var(--shadow-pop); animation: fade 0.15s ease;
+}
+.camera-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.camera-head h2 { font-size: 18px; font-weight: 650; }
+.camera-head p { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.camera-view { position: relative; border-radius: 12px; overflow: hidden; background: #0b0b0b; aspect-ratio: 4 / 3; }
+.camera-view video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.camera-view.flash::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0.6; }
+.camera-wait { position: absolute; inset: 0; display: grid; place-items: center; color: #d6d6d6; font-size: 13px; }
+.camera-problem { display: grid; gap: 10px; justify-items: start; padding: 14px; border-radius: 12px; background: var(--serious-wash); font-size: 13.5px; }
+.camera-shots { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; overflow-x: auto; }
+.camera-shots li { position: relative; flex: none; }
+.camera-shots img { width: 72px; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.camera-shots .icon-btn { position: absolute; top: 3px; right: 3px; background: var(--surface); }
+.camera-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+.camera-actions { display: flex; gap: 8px; flex-wrap: wrap; }

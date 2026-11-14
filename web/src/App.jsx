@@ -4,7 +4,7 @@ import { useTheme } from "./theme.js";
 import Icon from "./components/Icon.jsx";
 import { Disc } from "./components/Badge.jsx";
 import TopBar from "./components/TopBar.jsx";
-import GoalBar, { DEFAULT_GOAL, PRACTICAL_GOAL } from "./components/GoalBar.jsx";
+import GoalBar, { DEFAULT_GOAL, PRACTICAL_GOAL, goalFor } from "./components/GoalBar.jsx";
 import StatTiles from "./components/StatTiles.jsx";
 import TeamBoard from "./components/TeamBoard.jsx";
 import PlanCard from "./components/PlanCard.jsx";
@@ -61,7 +61,7 @@ export default function App() {
   const [reviewFirst, setReviewFirst] = useState(true); // the run waits for the teacher to check the materials before planning
   const [scripts, setScripts] = useState(null); // photographed pages to read: { batch, pages } in reading order
   const [injectOcrFault, setInjectOcrFault] = useState(false);
-  const [assessment, setAssessment] = useState("essay"); // essays, or the PC assembly practical
+  const [assessment, setAssessment] = useState("essay"); // essays, a subject test (maths, science, history), or the PC practical
   const [mine, setMine] = useState(null); // the teacher's own class, once uploaded and checked
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState(null);
@@ -235,9 +235,10 @@ export default function App() {
           error={error}
           assessment={assessment}
           practicalAvailable={Boolean(state.features?.practical)}
+          tests={state.features?.tests || []}
           onAssessment={(next) => {
             setAssessment(next);
-            setGoal(next === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL);
+            setGoal(goalFor(next, state.features?.tests || []));
           }}
         />
 

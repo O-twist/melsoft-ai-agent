@@ -243,7 +243,7 @@ export default function DetailDrawer({ sub, rubric, support, outcomes, onClose, 
 
           <section>
             <h3>
-              {rubric.kind === "practical" ? "The attempt log" : "The essay"}{" "}
+              {rubric.kind === "practical" ? "The attempt log" : rubric.kind === "test" ? "The answer script" : "The essay"}{" "}
               <span className="h-note">
                 {sub.words} words{sub.source === "script" && ` · transcribed by the Clerk from handwritten script ${sub.script}`}
                 {quotes.some(Boolean) && " · quoted evidence highlighted"}

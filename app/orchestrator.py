@@ -37,11 +37,12 @@ class Run:
         # review: the teacher reads the memo, the rubric and every script before the Planner plans anything.
         self.review = {"wanted": bool(review), "waiting": False, "materials": None, "choice": None, "note": ""}
         self._reviewed = threading.Event()
-        # What is being marked: the essays (the default), or the PC assembly practical's attempt logs.
+        # What is being marked: the essays (the default), the PC assembly practical's attempt logs, or the answer
+        # scripts of a question-paper test in another subject (Mathematics, Physical Sciences, History).
         self.assessment = assessment if assessment in tools.RUBRIC_FILES else "essay"
         self.live_attempts = live_attempts  # attempts recorded in the dashboard's virtual lab, which replace the files
         if self.assessment != "essay":
-            pages = None  # photographed scripts are essays; a practical has none
+            pages = None  # photographed scripts are essays; a practical or a subject test has none
         self.pages, self.batch, self.inject_ocr_fault = list(pages or []), batch, bool(inject_ocr_fault and pages)
         self.intake = None  # the Clerk's work on the photographed scripts, when there is any
         stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -66,7 +67,7 @@ class Run:
         self._closing = False          # True once marking is over and feedback and delivery have begun
         self.rubric = tools.load_rubric(data_dir, self.assessment)
         self.outcomes = tools.load_outcomes(data_dir, self.rubric)
-        self.noun = self.rubric.get("work", "essay")  # "essay", or "practical attempt"
+        self.noun = self.rubric.get("work", "essay")  # "essay", "practical attempt" or "answer script"
 
     # ---- bookkeeping -------------------------------------------------
     def _t(self):
@@ -213,6 +214,13 @@ class Run:
                                     f"logs for {_n(len(self.subs), 'learner')} on the class list."
                                     + (f" Recorded live in the lab today: {', '.join(live)}." if live else ""))
             self._teacher_review()
+        elif tools.is_test(self.assessment):
+            tools.load_answers(self.data_dir, self.subs, self.assessment)
+            tools.triage(self.subs, rubric)
+            found = sum(1 for s in self.subs if s["text"])
+            self.emit("PL", "INFO", f"Goal received. {rubric['title']} loaded. {_n(found, self.noun)} handed in "
+                                    f"by {_n(len(self.subs), 'learner')} on the class list.")
+            self._teacher_review()
         elif self.pages:
             self.emit("PL", "INFO", f"Goal received. {rubric['title']} loaded. {_n(len(self.subs), 'learner')} on the class list, "
                                     f"and {_n(len(self.pages), 'photographed page')} of handwritten work.")
@@ -225,7 +233,8 @@ class Run:
             self._teacher_review()
         for s in self.subs:
             if "instruction_to_marker" in s["flags"]:
-                self.emit("PL", "FLAG", "Essay contains text that tries to instruct the marker. It will be marked normally and reported to the teacher.", s["id"])
+                self.emit("PL", "FLAG", f"{self.noun[0].upper()}{self.noun[1:]} contains text that tries to instruct the marker. "
+                                        "It will be marked normally and reported to the teacher.", s["id"])
 
         with self._busy("PL", "Reading the goal and planning the work"):
             inventory = [{"id": s["id"], "words": s["words"], "flags": s["flags"],
@@ -1074,7 +1083,9 @@ class Run:
 
     def _evidence(self):
         """How a quoted piece of evidence is introduced in the teacher's documents."""
-        return {"evidence": "From the attempt log"} if self.assessment == "practical" else {}
+        if self.assessment == "practical":
+            return {"evidence": "From the attempt log"}
+        return {"evidence": "From the answer script"} if tools.is_test(self.assessment) else {}
 
     def _resubmit_message(self, s, first, what):
         rubric = self.rubric
@@ -1083,6 +1094,12 @@ class Run:
                 f"Hi {first},\n\nI could not mark your PC assembly practical because there is no attempt from you in "
                 f"the virtual lab's records. The task was: {rubric['task']}\n\nPlease book a session in the lab and "
                 "complete the assembly so that it can be marked. If something is making it hard to finish, tell your teacher.")}
+        if tools.is_test(self.assessment):
+            subject = rubric.get("subject") or "test"
+            return {"subject": f"Please hand in your {subject} test", "body": (
+                f"Hi {first},\n\nI could not mark your {subject} test because {what}. "
+                f"The instructions were: {rubric['task']}\n\nPlease hand in your answers to every question "
+                "so that they can be marked. If something is making it hard to finish, tell your teacher.")}
         return {"subject": "Please resubmit your essay", "body": (
             f"Hi {first},\n\nI could not mark your essay because {what}. "
             f"The task was: {rubric['task']}\n\nPlease send your full essay "
@@ -1441,18 +1458,34 @@ class Run:
         s["history"].append({"who": "Clerk", "what": f"Handwritten script {rec['id']} held for the teacher: {problems}."})
         self.emit(CLERK, "ESCALATE", f"Script {rec['id']} held for the teacher: {problems}. Nothing will be marked from it until the teacher decides.", s["id"])
 
-    def resolve_script(self, script_id, choice, learner_id=None):
-        """Teacher settles a script the Clerk held: accept the transcript, or set it aside.
+    def resolve_script(self, script_id, choice, learner_id=None, name=None, email=None):
+        """Teacher settles a script the Clerk held: accept the transcript, add its writer to the class, or set it aside.
 
         A held script whose learner is known can only be accepted for that learner. One whose name is not on the
-        class list can be accepted for a learner who has nothing marked yet. Returns False if the request does not fit.
+        class list can be accepted for a learner who has nothing marked yet, or ("add") the teacher allows it: the
+        writer joins this run's class list under the name given (the name read, by default) and the script is marked.
+        Setting it aside blocks it: nothing is marked from it. Returns False if the request does not fit.
         """
         with self.lock:
             rec = next((r for r in (self.intake or {}).get("scripts", []) if r["id"] == script_id), None)
-            if not rec or rec["status"] != "held" or choice not in ("accept", "set_aside"):
+            if not rec or rec["status"] != "held" or choice not in ("accept", "add", "set_aside"):
                 return False
             target = self._sub(rec["learner"] or str(learner_id or ""))
-            if choice == "accept":
+            if choice == "add":
+                name = " ".join(str(name or rec["name"] or "").split())[:80]
+                email = str(email or "").strip()[:120]
+                if rec["learner"] or not rec["words"] or not name or tools.match_learner(name, self.subs) \
+                        or (email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
+                    return False  # already someone's, nothing to mark, no name, a name already on the list, or a bad address
+                target = tools.new_submission(tools.next_learner_id(self.subs), name, email)
+                target.update(text=rec["text"], words=rec["words"], source="script", script=rec["id"], added=True)
+                tools.triage([target], self.rubric)
+                self.subs.append(target)
+                rec.update(status="accepted", decided="teacher", learner=target["id"], learner_name=name, added=True)
+                what = (f"Allowed handwritten script {rec['id']}: added {name} to this run's class list as {target['id']}, "
+                        "so the script can be marked. Add them to class.csv to keep them for later runs.")
+                choice = "accept"
+            elif choice == "accept":
                 if not target or not rec["words"] or (rec["learner"] and learner_id and learner_id != rec["learner"]):
                     return False  # nobody to give it to, nothing that could be marked, or someone else's script
                 own = target.get("script") == rec["id"] and target["status"] == "escalated"
@@ -1474,7 +1507,8 @@ class Run:
                     self.stats["resubmit"] += 1
                 else:
                     target = None
-                what = f"Set handwritten script {rec['id']} aside: nothing is marked from it."
+                what = f"Set handwritten script {rec['id']} aside: nothing is marked from it." if target else \
+                    f"Blocked handwritten script {rec['id']} (name read as “{rec['name'] or 'none'}”, not on the class list): nothing is marked from it."
             self.stats["human_interventions"] += 1
         if target:
             target["history"].append({"who": "Teacher", "what": what})
