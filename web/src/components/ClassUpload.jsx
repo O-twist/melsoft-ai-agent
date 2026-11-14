@@ -6,13 +6,13 @@ import { plural } from "../format.js";
 
 /**
  * The teacher's own class instead of the sample one: a class list (CSV: id, name, and optionally email and
- * previous) and one .txt essay per learner, named by the learner's id. A rubric and learning outcomes are
- * optional; without them the sample ones are used. The server checks everything before keeping it.
+ * previous) and one .txt essay per learner, named by the learner's id. A rubric, a marking memo and learning
+ * outcomes are optional; without them the sample ones are used. The server checks everything before keeping it.
  *
  * mine: the summary of the class in use ({ class, learners, essays, missing, unmatched, preview, ... }), or null.
  */
 export default function ClassUpload({ mine, onMine, running }) {
-  const [files, setFiles] = useState({ classList: null, essays: [], rubric: null, outcomes: null });
+  const [files, setFiles] = useState({ classList: null, essays: [], rubric: null, memo: null, outcomes: null });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(false);
@@ -41,7 +41,7 @@ export default function ClassUpload({ mine, onMine, running }) {
             <h2>Class <span className="h-note">{mine ? "your own" : "the sample Grade 10 class"}</span></h2>
             <p>
               {mine
-                ? `${plural(mine.learners, "learner")}, ${plural(mine.essays, "essay")} matched, marked against ${mine.own_rubric ? "your rubric" : "the sample rubric"}: ${mine.rubric}.`
+                ? `${plural(mine.learners, "learner")}, ${plural(mine.essays, "essay")} matched, marked against ${mine.own_rubric ? "your rubric" : "the sample rubric"}: ${mine.rubric}, ${mine.own_memo ? "with your memo" : mine.memo ? "with the sample memo" : "with no memo"}.`
                 : "Marking the sample class. Upload your own class list and essays to mark your class instead."}
             </p>
           </div>
@@ -78,6 +78,10 @@ export default function ClassUpload({ mine, onMine, running }) {
           <label>
             <b>Rubric</b> <span className="h-note">optional, rubric.json in the same shape as the sample's</span>
             <input type="file" accept=".json,application/json" onChange={pick("rubric")} />
+          </label>
+          <label>
+            <b>Marking memo</b> <span className="h-note">optional, a .md or .txt file the Marker and Reviewer both mark with. Without your own rubric the sample memo is used; with your own rubric and no memo, the rubric alone is used</span>
+            <input type="file" accept=".md,.txt,text/plain,text/markdown" onChange={pick("memo")} />
           </label>
           <label>
             <b>Learning outcomes</b> <span className="h-note">optional, outcomes.json</span>

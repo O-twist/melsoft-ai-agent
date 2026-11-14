@@ -25,6 +25,7 @@ import ClassUpload from "./components/ClassUpload.jsx";
 import DetailDrawer from "./components/DetailDrawer.jsx";
 import RiskBoard from "./components/RiskBoard.jsx";
 import ScoreReport from "./components/ScoreReport.jsx";
+import MaterialsPanel from "./components/MaterialsPanel.jsx";
 
 const DOWNLOADS = [
   { name: "marks.csv", label: "Mark sheet (CSV)" },
@@ -57,6 +58,7 @@ export default function App() {
   const [theme, toggleTheme] = useTheme();
   const [goal, setGoal] = useState(DEFAULT_GOAL);
   const [injectFault, setInjectFault] = useState(false);
+  const [reviewFirst, setReviewFirst] = useState(true); // the run waits for the teacher to check the materials before planning
   const [scripts, setScripts] = useState(null); // photographed pages to read: { batch, pages } in reading order
   const [injectOcrFault, setInjectOcrFault] = useState(false);
   const [assessment, setAssessment] = useState("essay"); // essays, or the PC assembly practical
@@ -80,6 +82,14 @@ export default function App() {
     // Deliberately keyed on the run alone: this must not fire on every poll and undo the user's typing.
   }, [runId]);
 
+  // When a run stops to have its materials checked, bring the teacher to them, from whichever view they are on.
+  const awaiting = Boolean(state?.review?.waiting);
+  useEffect(() => {
+    if (!awaiting) return;
+    setView("desk");
+    requestAnimationFrame(() => document.getElementById("materials")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [awaiting, runId]);
+
   if (!state) return <Splash offline={offline} problem={problem} />;
 
   const running = state.status === "running";
@@ -98,10 +108,10 @@ export default function App() {
     try {
       const pages = scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((p) => p.id) } : null;
       const essays = assessment === "essay";
-      await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null);
+      await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null, reviewFirst);
       refresh();
       // Bring the progress, the team and the log into view: from here on the goal box is not the interesting part.
-      document.getElementById("progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (!reviewFirst) document.getElementById("progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
       setError(e.message);
     }
@@ -135,7 +145,7 @@ export default function App() {
     setNotice(`Rescue plan started for ${row.learner}. The Coach and the Designer are on this run.`);
     try {
       const pages = which === "essay" && scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((page) => page.id) } : null;
-      await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
+      await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null, reviewFirst);
       refresh();
     } catch (e) {
       setNotice("");
@@ -150,6 +160,7 @@ export default function App() {
       <TopBar
         llm={state.llm}
         status={state.status}
+        waiting={awaiting}
         elapsed={state.elapsed}
         offline={offline}
         theme={theme}
@@ -216,6 +227,8 @@ export default function App() {
           onGoal={setGoal}
           injectFault={injectFault}
           onInjectFault={setInjectFault}
+          reviewFirst={reviewFirst}
+          onReviewFirst={setReviewFirst}
           running={running}
           hasRun={Boolean(state.id)}
           onStart={start}
@@ -243,6 +256,14 @@ export default function App() {
             running={running}
           />
         )}
+
+        <MaterialsPanel
+          state={state}
+          assessment={assessment}
+          classId={assessment === "essay" ? mine?.class : null}
+          scripts={scripts}
+          onChanged={refresh}
+        />
 
         <StatTiles stats={state.stats} subs={state.subs} plan={state.plan} rubric={state.rubric} />
 

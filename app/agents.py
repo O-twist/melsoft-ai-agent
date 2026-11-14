@@ -89,6 +89,9 @@ def _rubric_text(rubric):
     for c in rubric["criteria"]:
         lines.append(f"Criterion id '{c['id']}': {c['name']} (0-{c['max']})")
         lines += [f"  {b['range'][0]}-{b['range'][1]}: {b['text']}" for b in c["bands"]]
+    memo = (rubric.get("memo") or {}).get("text")
+    if memo:  # the teacher's marking memo: how to apply the rubric to this task. The rubric still decides the bands.
+        lines += ["", "MARKING MEMO (from the teacher; apply it when choosing bands and marks)", memo]
     return "\n".join(lines)
 
 
@@ -111,7 +114,8 @@ def plan(llm, goal, rubric, inventory, log):
         "plans and the lesson agree; that check is enforced in code and a mismatch goes back to the colleague who owns it, once."
     )
     prompt = (
-        f"Teacher's goal: {goal}\n\nRubric: {rubric['title']} (total {rubric['total']})\n\n"
+        f"Teacher's goal: {goal}\n\nRubric: {rubric['title']} (total {rubric['total']})\n"
+        f"Marking memo: {'provided by the teacher; the Marker and Reviewer both mark with it' if rubric.get('memo') else 'none; mark from the rubric alone'}\n\n"
         f"Submissions (id, word count, flags):\n{_j(inventory)}\n\n"
         'Reply with JSON only: {"understanding": "<one sentence>", "batch_size": <integer 2-8>, '
         '"exclude": [{"id": "<id>", "reason": "<why>"}], '
@@ -327,7 +331,7 @@ def lesson(llm, rubric, outcomes, brief, log, fix_notes=None):
         '"task": "<the whole exercise>", "answer": "<model answer>"}], '
         '"exit_ticket": "<one question to end the lesson on>"}'
     )
-    return _obj(_call(llm, rubric, "lesson", system, prompt, {"brief": brief, "outcomes": outcomes, "work": rubric.get("work", "essay")}, log))
+    return _obj(_call(llm, rubric, "lesson", system, prompt, {"brief": brief, "outcomes": outcomes, "work": rubric.get("work", "essay"), "task": rubric.get("task", "")}, log))
 
 
 def try_exercises(llm, outcomes, exercises, log):
@@ -393,7 +397,7 @@ def align_lesson(llm, rubric, outcomes, lesson, missing, log):
         '"task": "<the whole exercise>", "answer": "<model answer>"}], '
         '"exit_ticket": "<one question>"}'
     )
-    return _obj(_call(llm, rubric, "align_lesson", system, prompt, {"lesson": lesson, "missing": missing, "outcomes": outcomes}, log))
+    return _obj(_call(llm, rubric, "align_lesson", system, prompt, {"lesson": lesson, "missing": missing, "outcomes": outcomes, "task": rubric.get("task", "")}, log))
 
 
 def align_support(llm, rubric, outcomes, cases, lesson_outcomes, exercise_outcomes, log):

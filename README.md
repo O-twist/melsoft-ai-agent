@@ -39,6 +39,14 @@ With both keys, Gemini does the work. If Gemini is busy, unreachable or refuses 
 
 Tests: `python -m unittest discover tests` (all offline; `tests/test_ingest.py` covers the handwritten scripts, `tests/test_practical.py` the PC assembly practical, `tests/test_live_lab.py` the virtual lab). The virtual lab's own rules are tested with Node's built-in runner: `npm test` inside `web`.
 
+## Before planning: the teacher checks the materials
+
+With **Check materials first** on (the default), a run loads the class and then stops before the Planner plans anything. The **Memo, rubric and scripts** card shows the marking memo (`data/memo.md`, or `practical_memo.md` for the practical), the rubric, and every learner's script or attempt log, with what the checks noticed. Photographed pages appear there too. Press **Looks right, plan the work** to go on, adding a note for the Planner if you like, or **Stop** to fix something first. The card can also be opened before a run.
+
+The memo is plain text or Markdown. The Marker and the Reviewer both mark with it, alongside the rubric. Its `## Key terms` line tells the offline mock which words show an essay is on topic. Upload your own memo with your class. A class with its own rubric and no memo is marked from the rubric alone, never from the sample memo.
+
+A two-minute script for a live demo, with answers to the usual questions, is in [DEMO.md](DEMO.md).
+
 ## How to demo it
 
 1. Start in mock mode (no key needed): `python run.py`, open http://localhost:8000.

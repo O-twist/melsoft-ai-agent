@@ -2,9 +2,12 @@ import Icon from "./Icon.jsx";
 import { Disc } from "./Badge.jsx";
 import { clock, plural } from "../format.js";
 
-function RunState({ status, elapsed, offline }) {
+function RunState({ status, waiting, elapsed, offline }) {
   if (offline) {
     return <span className="chip"><Disc tone="serious" icon="alert" />Reconnecting…</span>;
+  }
+  if (status === "running" && waiting) {
+    return <span className="chip"><Disc tone="accent" icon="user" /><span className="chip-words">Waiting for you to check the materials</span></span>;
   }
   if (status === "running") {
     return <span className="chip"><span className="live-dot" /><span className="chip-words">Working ·</span><span className="num">{clock(elapsed)}</span></span>;
@@ -31,7 +34,7 @@ function llmTitle(llm) {
   return parts.join(" ");
 }
 
-export default function TopBar({ llm, status, elapsed, offline, theme, onToggleTheme }) {
+export default function TopBar({ llm, status, waiting = false, elapsed, offline, theme, onToggleTheme }) {
   const mock = llm.name === "mock";
   const other = theme === "dark" ? "light" : "dark";
   return (
@@ -54,7 +57,7 @@ export default function TopBar({ llm, status, elapsed, offline, theme, onToggleT
               <>{SERVICE[llm.name] || llm.name} · {llm.model}{llm.calls > 0 && <> · <span className="num">{plural(llm.calls, "call")}</span></>}</>
             )}
           </span>
-          <RunState status={status} elapsed={elapsed} offline={offline} />
+          <RunState status={status} waiting={waiting} elapsed={elapsed} offline={offline} />
           <button type="button" className="icon-btn" onClick={onToggleTheme} aria-label={`Switch to ${other} theme`} title={`Switch to ${other} theme`}>
             <Icon name={theme === "dark" ? "sun" : "moon"} size={17} />
           </button>

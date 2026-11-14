@@ -44,7 +44,7 @@ const EXAMPLES = [
 ];
 
 export default function GoalBar({
-  goal, onGoal, injectFault, onInjectFault, running, hasRun, onStart, error,
+  goal, onGoal, injectFault, onInjectFault, reviewFirst = true, onReviewFirst = () => {}, running, hasRun, onStart, error,
   assessment = "essay", onAssessment, practicalAvailable = false,
 }) {
   const examples = assessment === "practical" ? PRACTICAL_EXAMPLES : EXAMPLES;
@@ -116,6 +116,14 @@ export default function GoalBar({
           ))}
         </div>
         <div className="goal-actions">
+          <label className="switch">
+            <input type="checkbox" checked={reviewFirst} disabled={running} onChange={(e) => onReviewFirst(e.target.checked)} />
+            <span className="switch-track" />
+            <span className="switch-text">
+              Check materials first
+              <small>See the memo, rubric and scripts before it plans</small>
+            </span>
+          </label>
           <label className="switch">
             <input type="checkbox" checked={injectFault} disabled={running} onChange={(e) => onInjectFault(e.target.checked)} />
             <span className="switch-track" />

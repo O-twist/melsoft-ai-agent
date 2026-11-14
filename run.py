@@ -98,6 +98,8 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/risk":
                 run = current["run"]
                 return self._send(200, self._risk_board(run, run.subs if run else None))
+            if url.path == "/api/materials":
+                return self._materials(parse_qs(url.query))
             if url.path == "/api/file":
                 return self._download(parse_qs(url.query).get("name", [""])[0])
             if url.path == "/api/corrections.md":
@@ -134,6 +136,30 @@ class Handler(BaseHTTPRequestHandler):
             return risk.assess(DATA, live_dir=live_attempts())
         except Exception as exc:
             return {"ok": False, "learners": [], "counts": {}, "error": f"{type(exc).__name__}: {exc}"}
+
+    def _materials(self, query):
+        """The memo, the rubric and every learner's script: the current run's, or (before a run) what is on disk."""
+        one = lambda key: query.get(key, [""])[0]
+        run = current["run"]
+        if one("source") == "run":
+            if not run:
+                return self._send(404, {"error": "There is no run yet."})
+            return self._send(200, run.materials())
+        assessment = one("assessment") or "essay"
+        if assessment not in tools.RUBRIC_FILES or (assessment == "practical" and not practical_lab()):
+            return self._send(400, {"error": "That kind of assessment is not available."})
+        data_dir = DATA
+        if one("class") and assessment == "essay":
+            try:
+                data_dir = str(classes.class_folder(class_root(), one("class")))
+            except classes.ClassError as e:
+                return self._send(400, {"error": str(e)})
+        rubric = tools.load_rubric(data_dir, assessment)
+        subs = tools.load_submissions(data_dir)
+        if assessment == "practical":
+            tools.load_attempts(data_dir, subs, rubric, live_attempts())
+        tools.triage(subs, rubric)
+        return self._send(200, tools.materials(subs, rubric))
 
     def _download(self, name):
         """Hand over a file the current run wrote (mark sheet, class report, catch-up plans, lesson plan). Only files the run recorded."""
@@ -201,7 +227,8 @@ class Handler(BaseHTTPRequestHandler):
         if not one("class_list"):
             return self._send(400, {"error": "Choose the class list (a CSV file with id and name columns).", "problems": []})
         try:
-            cid, summary = classes.create_class(class_root(), DATA, one("class_list"), essays, one("rubric"), one("outcomes"))
+            cid, summary = classes.create_class(class_root(), DATA, one("class_list"), essays, one("rubric"), one("outcomes"),
+                                                one("memo"))
         except classes.ClassError as e:
             return self._send(400, {"error": "The class was not kept: " + str(e) + ".", "problems": e.problems})
         return self._send(200, summary)
@@ -260,8 +287,14 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(400, {"error": str(e)})
                 current["run"] = Run(make_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
                                      pages=pages, batch=batch, inject_ocr_fault=bool(body.get("inject_ocr_fault")),
-                                     assessment=assessment, live_attempts=live_attempts())
+                                     assessment=assessment, live_attempts=live_attempts(),
+                                     review=bool(body.get("review")))
                 current["run"].start()
+                return self._send(200, {"ok": True})
+            if self.path == "/api/review":
+                run = current["run"]
+                if not run or not run.approve(bool(body.get("go")), body.get("note") or ""):
+                    return self._send(400, {"error": "The run is not waiting for the materials to be checked."})
                 return self._send(200, {"ok": True})
             if self.path == "/api/resolve" and current["run"]:
                 if body.get("kind") == "script":
