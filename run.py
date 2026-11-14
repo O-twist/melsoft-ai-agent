@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from app import classes, ingest, risk, store, story, tools, week2
+from app import llm as llm_service
 from app import windows as windows_station
 from app.llm import make_llm
 from app.orchestrator import AGENTS, Run
@@ -37,6 +38,36 @@ NOT_BUILT = (
 mimetypes.add_type("model/gltf-binary", ".glb")  # the 3D model in the lesson view
 DOWNLOADS = {".csv": "text/csv", ".md": "text/markdown", ".pdf": "application/pdf", ".txt": "text/plain"}
 current = {"run": None, "week2": None}
+
+
+def serverless():
+    """True where a request cannot count on the next one reaching the same process (Vercel).
+
+    There a run cannot carry on in the background after the reply, and what one instance wrote to disk is
+    not there for the next. So the whole run happens inside the request that starts it, and the browser is
+    handed the finished run to play back. RUN_IN_REQUEST=1 turns the same behaviour on anywhere, for testing.
+    """
+    return bool(os.getenv("VERCEL")) or os.getenv("RUN_IN_REQUEST") == "1"
+
+
+def request_llm():
+    """The model for a run that must finish inside one request: nothing waits, and live models get a time limit."""
+    llm = make_llm()
+    for backend in getattr(llm, "chain", [llm]):
+        if backend.name == "mock":
+            backend.instant = True
+        else:
+            backend.delays = [2]  # one short retry, then the next backend
+    if hasattr(llm, "deadline") and not llm.deadline:
+        llm.deadline = float(os.getenv("RUN_SECONDS", "35"))
+    if not os.getenv("LLM_HTTP_TIMEOUT"):
+        llm_service.HTTP_TIMEOUT = 12
+    return llm
+
+
+def features():
+    """What this deployment can offer. Uploads need files that outlive a request, so they are local only."""
+    return {"practical": practical_lab(), "uploads": not serverless(), "replay": serverless()}
 
 
 def practical_lab():
@@ -128,7 +159,7 @@ class Handler(BaseHTTPRequestHandler):
                 run = current["run"]
                 since = parse_qs(url.query).get("since", ["0"])[0]
                 state = run.snapshot(int(since) if since.isdigit() else 0) if run else idle_state()
-                state["features"] = {"practical": practical_lab()}
+                state["features"] = features()
                 state["risk"] = self._risk_board(run, state.get("subs") if run else None)
                 state["week2"] = current.get("week2") or store.load_week()
                 return self._send(200, state)
@@ -303,6 +334,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             url = urlparse(self.path)
+            if url.path in ("/api/ingest", "/api/class") and serverless():
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))  # take the upload before refusing it
+                return self._send(400, {"error": "Uploads are switched off on this deployment. Run LabLess on a computer to use your own class or photographed scripts."})
             if url.path == "/api/ingest":
                 return self._ingest(parse_qs(url.query))
             if url.path == "/api/class":
@@ -342,6 +376,12 @@ class Handler(BaseHTTPRequestHandler):
                         pages = ingest.load_pages(uploads(), batch, order if isinstance(order, list) else None)
                     except ingest.IngestError as e:
                         return self._send(400, {"error": str(e)})
+                if serverless():
+                    run = Run(request_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
+                              assessment=assessment, live_attempts=live_attempts(), record=True)
+                    current["run"] = run
+                    run._guarded()  # the whole loop, inside this request
+                    return self._send(200, {"ok": True, "run": run.recording()})
                 current["run"] = Run(make_llm(), goal, data_dir, OUTPUT, bool(body.get("inject_fault")),
                                      pages=pages, batch=batch, inject_ocr_fault=bool(body.get("inject_ocr_fault")),
                                      assessment=assessment, live_attempts=live_attempts())

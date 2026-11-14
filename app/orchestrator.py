@@ -27,8 +27,11 @@ def _n(count, noun):
 
 class Run:
     def __init__(self, llm, goal, data_dir="data", out_dir="output", inject_fault=False,
-                 pages=None, batch=None, inject_ocr_fault=False, assessment="essay", live_attempts=None):
+                 pages=None, batch=None, inject_ocr_fault=False, assessment="essay", live_attempts=None, record=False):
         self.llm, self.goal, self.inject_fault = llm, goal, inject_fault
+        # record: keep a small picture of the run at every log line, so a run that finished inside one web
+        # request (a serverless deployment) can be played back in the browser step by step.
+        self.record, self.frames = record, []
         # What is being marked: the essays (the default), or the PC assembly practical's attempt logs.
         self.assessment = assessment if assessment in tools.RUBRIC_FILES else "essay"
         self.live_attempts = live_attempts  # attempts recorded in the dashboard's virtual lab, which replace the files
@@ -61,12 +64,43 @@ class Run:
         self.noun = self.rubric.get("work", "essay")  # "essay", or "practical attempt"
 
     # ---- bookkeeping -------------------------------------------------
+    def _skipped(self):
+        """Seconds of pacing the offline marker left out, which the run's clock still counts."""
+        return getattr(self.llm, "skipped", 0.0)
+
     def _t(self):
-        return round(time.time() - self.started, 1)
+        return round(time.time() - self.started + self._skipped(), 1)
 
     def emit(self, agent, kind, msg, sid=None):
         with self.lock:
             self.events.append({"t": self._t(), "agent": agent, "kind": kind, "msg": msg, "sid": sid})
+            self._keep_frame()
+
+    def _keep_frame(self):
+        if self.record:
+            with self.lock:
+                self.frames.append(self._frame())
+
+    def _frame(self):
+        """Where the run stands now, taken at every log line and whenever an agent picks up or puts down work:
+        enough for the dashboard to show this moment again later."""
+        return {
+            "t": self._t(), "n": len(self.events), "agents": dict(self.agent_state), "stats": dict(self.stats),
+            "spans": len(self.spans),
+            "subs": {s["id"]: [s["status"]] + [bool(s.get(k)) for k in ("marker", "reviewer", "final", "feedback")]
+                     for s in self.subs},
+            "has": [k for k in ("plan", "report", "support", "lesson", "consistency", "intake") if getattr(self, k)],
+        }
+
+    def recording(self):
+        """The finished run for a browser to play back: the last snapshot, each moment on the way, and the text files."""
+        files = {}
+        for name in self.files:
+            path = self.out_dir / name
+            if path.suffix in (".csv", ".md", ".txt") and path.is_file() and path.stat().st_size < 300_000:
+                files[name] = path.read_text(encoding="utf-8")
+        files["corrections.md"] = story.to_markdown(self.corrections())
+        return {**self.snapshot(), "frames": self.frames, "file_texts": files}
 
     @contextmanager
     def _busy(self, agent, what):
@@ -77,11 +111,13 @@ class Run:
             if self.ended is None:  # the timeline shows the run itself, not decisions the teacher makes later
                 self.spans.append(span)
             self.agent_state[agent] = "working"
+            self._keep_frame()
         try:
             yield
         finally:
             span["end"] = self._t()
             self.agent_state[agent] = "waiting" if before == "working" else before
+            self._keep_frame()
 
     def _log(self, agent):
         return lambda msg: self.emit(agent, "WAIT", msg)
@@ -104,7 +140,8 @@ class Run:
                         "served": getattr(self.llm, "served", None), "backup": getattr(self.llm, "standby", None),
                         "switched": bool(getattr(self.llm, "switched", None))},
                 "where": self.where,
-                "elapsed": round((self.ended or now) - self.started), "t": round(now - self.started, 1),
+                "elapsed": round((self.ended or now) - self.started + self._skipped()),
+                "t": round(now - self.started + self._skipped(), 1),
             }
 
     def start(self):

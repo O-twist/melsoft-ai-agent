@@ -152,6 +152,7 @@ class DeployTests(unittest.TestCase):
         self.assertEqual(cfg["outputDirectory"], "web/dist")
         self.assertIn("npm run build --prefix web", cfg["buildCommand"])
         self.assertTrue(any(item["source"].startswith("/api") for item in cfg["rewrites"]))
+        self.assertGreaterEqual(cfg["functions"]["api/index.py"]["maxDuration"], 60)  # room for a run inside one request
         entry = (ROOT / "api" / "index.py").read_text(encoding="utf-8")
         self.assertIn("class handler(Handler)", entry)
         for name in ("requirements.txt", "api/requirements.txt"):

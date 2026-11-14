@@ -22,6 +22,7 @@ API = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_MODEL = "gemini-3.8-flash"
 OPENROUTER_API = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "openrouter/free"  # OpenRouter's own router: picks a free model that is up
+HTTP_TIMEOUT = float(os.getenv("LLM_HTTP_TIMEOUT", "180"))  # seconds one request to a live model may take
 
 
 class LLMError(Exception):
@@ -71,7 +72,7 @@ class Gemini:
             method=method,
             headers={"x-goog-api-key": self.key, "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=180) as resp:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode())
 
     def _body(self, system, prompt, images=None):
@@ -227,8 +228,8 @@ class OpenRouter:
         req = urllib.request.Request(
             f"{self.api}/chat/completions", data=json.dumps(body).encode(), method="POST",
             headers={"Authorization": f"Bearer {self.key}", "Content-Type": "application/json",
-                     "X-Title": "Marking Colleague"})
-        with urllib.request.urlopen(req, timeout=180) as resp:
+                     "X-Title": "LabLess"})
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
             return json.loads(resp.read().decode())
 
     @staticmethod
@@ -349,6 +350,11 @@ class Fallback:
         return sum(backend.calls for backend in self.chain)
 
     @property
+    def skipped(self):
+        """Seconds of pacing the offline marker left out (see Mock.instant)."""
+        return sum(getattr(backend, "skipped", 0.0) for backend in self.chain)
+
+    @property
     def served(self):
         """The model OpenRouter's router picked for the last request, once OpenRouter has taken over."""
         return getattr(self.active, "served", None)
@@ -401,10 +407,17 @@ class Mock:
     def __init__(self):
         self.calls = 0
         self.delay = float(os.getenv("MOCK_DELAY", "0.7"))
+        # A run that has to finish inside one web request does not wait between steps. The pause each step
+        # would have taken is added up here instead, and the run's clock counts it, so the timeline reads the same.
+        self.instant = False
+        self.skipped = 0.0
 
     def call(self, task, system, prompt, data=None, log=None):
         self.calls += 1
-        time.sleep(self.delay)
+        if self.instant:
+            self.skipped += self.delay
+        else:
+            time.sleep(self.delay)
         return mock.respond(task, data or {})
 
     def call_vision(self, task, system, prompt, images, data=None, log=None):

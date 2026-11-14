@@ -10,6 +10,7 @@
   "functions": {
     "api/index.py": {
       "includeFiles": "data/**",
+      "maxDuration": 60,
       "excludeFiles": "{web/node_modules/**,web/public/models/**,tests/**,output/**}"
     }
   }
