@@ -57,7 +57,9 @@ The dashboard is the Vite build in `web/dist`. The Python API is one serverless 
 
 1. In Vercel, import this GitHub repository. If it asks for a framework, choose **Other**. The commands are already in `vercel.json`: `npm ci --prefix web`, then `npm run build --prefix web`, output `web/dist`.
 2. Deploy. With no Supabase variables, the class bundled in `data/` is what the dashboard scores. Week 2 is still 53 to 22 on the risk score and 57 to 78 on the report for Bongani Sithole.
-3. A full marking run is still most reliable with `python run.py`, which keeps one process for the live log. On Vercel, the home screen, the score reports, Week 2, the lab and the Windows checklist all answer a single request. After **Week 2**, the page keeps that result even when the next request lands on a fresh instance.
+3. On Vercel every screen answers in a single request, the marking run included. A serverless function cannot keep working after it has replied, and the next request may reach an instance that remembers nothing. So when you press **Start work** there, the team does the whole loop inside that one request and the page plays the finished run back step by step: the loop, the team board, the live log and the corrections fill in exactly as they do against `python run.py`. The page keeps the run, and the **Week 2** result, so both are still there after a refresh.
+4. With no API key set in Vercel, runs use the offline demo marker and finish at once. With a key, the live models are given about 35 seconds per run (`RUN_SECONDS`), after which the offline demo marker finishes the run and the live log says so. For a full run on live models, use `python run.py`.
+5. Uploading your own class and photographed scripts needs files that outlive a request, so those two cards are left out on Vercel. They work with `python run.py`.
 
 ## Optional Supabase
 

@@ -1,6 +1,7 @@
 import Icon from "./Icon.jsx";
 import { Pill } from "./Badge.jsx";
 import { AGENTS, clock, plural } from "../format.js";
+import { correctionsUrl } from "../api.js";
 
 const OUTCOME = {
   fixed: { tone: "good", icon: "check", label: "Fixed" },
@@ -33,7 +34,7 @@ export default function CorrectionsPanel({ corrections, status, subs, onOpen }) 
             {status === "running" && " Still running, so more may follow."} Built from the run's log.
           </p>
         </div>
-        <a className="btn small" href="/api/corrections.md" download="corrections.md">
+        <a className="btn small" href={correctionsUrl()} download="corrections.md">
           <Icon name="download" size={14} />Corrections
         </a>
       </header>

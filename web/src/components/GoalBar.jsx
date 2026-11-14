@@ -45,9 +45,10 @@ const EXAMPLES = [
 
 export default function GoalBar({
   goal, onGoal, injectFault, onInjectFault, running, hasRun, onStart, error,
-  assessment = "essay", onAssessment, practicalAvailable = false,
+  assessment = "essay", onAssessment, practicalAvailable = false, uploads = true,
 }) {
-  const examples = assessment === "practical" ? PRACTICAL_EXAMPLES : EXAMPLES;
+  // The handwritten-scripts goal needs photos to be uploaded first, which a serverless deployment cannot keep.
+  const examples = assessment === "practical" ? PRACTICAL_EXAMPLES : EXAMPLES.filter((ex) => uploads || ex.label !== "Handwritten scripts too");
   const ready = !running && goal.trim().length > 0;
   const box = useRef(null);
 

@@ -82,7 +82,7 @@ function Splash({ offline, problem }) {
 }
 
 export default function App() {
-  const { state, events, offline, problem, refresh } = useRun();
+  const { state, events, offline, problem, refresh, adopt } = useRun();
   const [goal, setGoal] = useState(DEFAULT_GOAL);
   const [injectFault, setInjectFault] = useState(false);
   const [scripts, setScripts] = useState(null); // photographed pages to read: { batch, pages } in reading order
@@ -153,6 +153,8 @@ export default function App() {
   const wantsSupport = Boolean(state.plan?.deliver.support);
   const wantsLesson = Boolean(state.plan?.deliver.lesson);
   const behind = (state.support?.learners || []).map((e) => e.id);
+  // Uploads need files that outlive a request, so a serverless deployment leaves those two cards out.
+  const uploads = state.features?.uploads !== false;
 
   async function start() {
     setError("");
@@ -160,7 +162,8 @@ export default function App() {
     try {
       const pages = scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((p) => p.id) } : null;
       const essays = assessment === "essay";
-      await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null);
+      const out = await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null);
+      adopt(out.run); // a serverless server hands the finished run back to be played here; a local one is polled
       refresh();
       // Bring the progress, the team and the log into view: from here on the goal box is not the interesting part.
       settleOn("loop-status");
@@ -242,7 +245,8 @@ export default function App() {
     setRescueFor({ id: row.id, name: row.learner, after: state.id });
     try {
       const pages = which === "essay" && scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((page) => page.id) } : null;
-      await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
+      const out = await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null);
+      adopt(out.run);
       refresh();
     } catch (e) {
       setNotice("");
@@ -327,6 +331,7 @@ export default function App() {
           error={error}
           assessment={assessment}
           practicalAvailable={Boolean(state.features?.practical)}
+          uploads={uploads}
           onAssessment={(next) => {
             setAssessment(next);
             setGoal(next === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL);
@@ -358,9 +363,9 @@ export default function App() {
         <WindowsStation subs={state.subs} focus={station?.kind === "windows" ? station : null} onSaved={refresh} />
 
         {/* Photographed scripts are essays, so the card is offered only when essays are being marked. */}
-        {assessment === "essay" && <ClassUpload mine={mine} onMine={setMine} running={running} />}
+        {assessment === "essay" && uploads && <ClassUpload mine={mine} onMine={setMine} running={running} />}
 
-        {assessment === "essay" && (
+        {assessment === "essay" && uploads && (
           <ScriptIngest
             scripts={scripts}
             onScripts={setScripts}
