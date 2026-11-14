@@ -123,14 +123,16 @@ export default function ScriptIngest({ scripts, onScripts, injectOcrFault, onInj
               Clerk sorts them by the page numbers written on them.
             </p>
             <div className="ingest-actions">
-              <label className="switch">
-                <input type="checkbox" checked={injectOcrFault} disabled={running} onChange={(e) => onInjectOcrFault(e.target.checked)} />
-                <span className="switch-track" />
-                <span className="switch-text">
-                  Inject an OCR fault
-                  <small>Deletes half a transcript; the Clerk must notice</small>
-                </span>
-              </label>
+              {onInjectOcrFault && (
+                <label className="switch">
+                  <input type="checkbox" checked={injectOcrFault} disabled={running} onChange={(e) => onInjectOcrFault(e.target.checked)} />
+                  <span className="switch-track" />
+                  <span className="switch-text">
+                    Inject an OCR fault
+                    <small>Deletes half a transcript; the Clerk must notice</small>
+                  </span>
+                </label>
+              )}
               <button type="button" className="btn small" disabled={locked} onClick={() => onScripts(null)}>
                 <Icon name="x" size={14} />Clear
               </button>

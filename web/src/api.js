@@ -129,6 +129,19 @@ export function holdWeek(result) {
 }
 export const submitWindows = (learnerId, answers) => post("/api/windows", { learner_id: learnerId, answers });
 
+/** The signed-in teacher's profile and saved runs. Returns null when accounts are off or nobody is signed in. */
+export async function fetchMe() {
+  try {
+    const res = await fetch("/api/me");
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export const saveProfile = (profile) => post("/api/profile", profile);
+export const saveRunSummary = (summary) => post("/api/runs", summary).catch(() => null);
+export const loadSampleClass = () => post("/api/classes/sample", {}).catch(() => null);
+
 /** The Windows checklist, without the answers the Reviewer is holding. */
 export async function windowsTasks() {
   const res = await fetch("/api/windows");

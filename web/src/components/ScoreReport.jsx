@@ -192,11 +192,11 @@ function ClassSummary({ risk }) {
 }
 
 /** The Messenger's score report: one learner, or the class, and printable from the browser. */
-export default function ScoreReport({ risk, week2, focusId, onCatchUp }) {
-  const [which, setWhich] = useState("before");
+export default function ScoreReport({ risk, week2, focusId, onCatchUp, initialMode = "learner", initialWeek = "before" }) {
+  const [which, setWhich] = useState(initialWeek);
   const shown = which === "after" && week2?.after?.ok ? week2.after : risk;
   const learners = shown?.learners || [];
-  const [mode, setMode] = useState("learner");
+  const [mode, setMode] = useState(initialMode);
   const [id, setId] = useState(focusId || learners[0]?.id || "");
 
   useEffect(() => {
