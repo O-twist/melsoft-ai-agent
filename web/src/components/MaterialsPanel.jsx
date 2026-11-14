@@ -174,7 +174,7 @@ export default function MaterialsPanel({ state, assessment, classId, scripts, on
   const m = data?.key === key ? data : null;
   const photoBatch = m?.pages?.length ? m.batch : scripts?.batch;
   const photos = m?.pages?.length ? m.pages : (!waiting && assessment === "essay" && scripts?.pages) || [];
-  const noun = m?.work || (assessment === "practical" ? "practical attempt" : "essay");
+  const noun = m?.work || (assessment === "practical" ? "practical attempt" : assessment === "essay" ? "essay" : "answer script");
   const tabs = [
     ["memo", "Memo"],
     ["rubric", "Rubric"],

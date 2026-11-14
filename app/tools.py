@@ -26,10 +26,26 @@ def load_env(path=".env"):
             os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-RUBRIC_FILES = {"essay": "rubric.json", "practical": "practical_rubric.json"}
+# Question-paper tests in other subjects, marked question by question against a memo: key -> subject name.
+# Each is data/<key>_rubric.json, data/<key>_memo.md and an answer script per learner in data/tests/<key>/<id>.txt.
+TESTS = {"maths": "Mathematics", "science": "Physical Sciences", "history": "History"}
+RUBRIC_FILES = {"essay": "rubric.json", "practical": "practical_rubric.json", **{k: f"{k}_rubric.json" for k in TESTS}}
+MEMO_FILES = {"essay": "memo.md", "practical": "practical_memo.md", **{k: f"{k}_memo.md" for k in TESTS}}
 
 
-MEMO_FILES = {"essay": "memo.md", "practical": "practical_memo.md"}
+def is_test(assessment):
+    return assessment in TESTS
+
+
+def available_tests(data_dir):
+    """The subject tests whose rubric is on disk: [{key, label, title}]."""
+    out = []
+    for key, label in TESTS.items():
+        path = Path(data_dir) / RUBRIC_FILES[key]
+        if path.exists():
+            title = json.loads(path.read_text(encoding="utf-8")).get("title", f"{label} test")
+            out.append({"key": key, "label": label, "title": title})
+    return out
 STOPWORDS = set("""a about after all also an and any are as at be because been but by can do does done for from good harm
 has have how in into is it its more most much no not of on or our so than that the their them then there these they this
 those to was we were what when which who will with without you your young south african africans discuss""".split())
@@ -68,11 +84,30 @@ def load_memo(data_dir, assessment="essay"):
 def load_rubric(data_dir, assessment="essay"):
     """The rubric for an assessment (the essay rubric, or the PC assembly practical's), with its marking memo if there is one."""
     rubric = json.loads((Path(data_dir) / RUBRIC_FILES[assessment]).read_text(encoding="utf-8"))
-    rubric.setdefault("kind", assessment)
-    rubric.setdefault("work", "essay")
+    rubric.setdefault("kind", "test" if is_test(assessment) else assessment)
+    rubric.setdefault("work", "answer script" if rubric["kind"] == "test" else "essay")
+    rubric["assessment"] = assessment
+    for c in rubric["criteria"]:
+        if c.get("parts"):
+            c.setdefault("max", sum(_int(p.get("marks")) for p in c["parts"]))
+        if not c.get("bands"):
+            c["bands"] = question_bands(c)
     rubric["total"] = sum(c["max"] for c in rubric["criteria"])
     rubric["memo"] = load_memo(data_dir, assessment)
     return rubric
+
+
+def question_bands(c):
+    """Bands for a test question that has none written: from every part right down to nothing right."""
+    top = c["max"]
+    a, b = -(-top * 6 // 10), -(-top * 3 // 10)  # 60% and 30%, rounded up
+    labels = "Parts " + ", ".join(p["label"] for p in c.get("parts") or []) if c.get("parts") else "The question"
+    rows = [((top, top), f"{labels}: every part correct, with the working or reasons the memo asks for."),
+            ((a, top - 1), "Most parts correct; a slip, a missing step or a missing point in one or two parts."),
+            ((b, a - 1), "Some parts correct, or the right method with wrong final answers."),
+            ((1, b - 1), "Little correct: a step of method or a single point at most."),
+            ((0, 0), "No correct answer, or not attempted.")]
+    return [{"range": [lo, hi], "text": text} for (lo, hi), text in rows if lo <= hi]
 
 
 def _int(value):
@@ -104,12 +139,12 @@ def load_outcomes(data_dir, rubric):
         data = json.loads(path.read_text(encoding="utf-8-sig"))
         rows = data.get("outcomes", []) if isinstance(data, dict) else data
     known = {c["id"] for c in rubric["criteria"]}
-    kind = rubric.get("kind", "essay")
+    kind = rubric.get("assessment") or rubric.get("kind", "essay")
     outcomes = [
         {"id": str(o["id"]).strip(), "text": str(o["text"]).strip(),
          "criteria": [str(c) for c in o.get("criteria") or [] if str(c) in known]}
         for o in rows if isinstance(o, dict) and o.get("id") and o.get("text")
-        and o.get("assessment", "essay") == kind  # the essay's outcomes for essays, the practical's for the practical
+        and o.get("assessment", "essay") == kind  # the essay's outcomes for essays, the practical's for the practical, and so on
     ]
     if not outcomes:
         outcomes = [{"id": c["id"], "text": f"{c['name']}: {max(c['bands'], key=lambda b: b['range'][1])['text']}",
@@ -128,17 +163,50 @@ def load_submissions(data_dir):
                 continue  # blank line in the class list
             path = data_dir / "essays" / f"{sid}.txt"
             text = path.read_text(encoding="utf-8-sig").strip() if path.exists() else ""
-            subs.append({
-                "id": sid, "learner": (row.get("name") or "").strip() or sid, "email": (row.get("email") or "").strip(),
-                "previous": _percent(row.get("previous")),
-                "text": text, "words": len(text.split()), "flags": [], "status": "received",
-                # rejected: a Marker's mark the Reviewer sent back.  issue: why the essay is waiting for the teacher.
-                "marker": None, "reviewer": None, "rejected": None, "final": None, "issue": None,
-                "feedback": None, "history": [],
-                # source: "typed", or "script" once the Clerk has transcribed a handwritten one (script: its id).
-                # script_hold: the Clerk held that script for the teacher, so nothing is marked from it yet.
-                "source": "typed" if text else None, "script": None, "script_hold": False,
-            })
+            subs.append(new_submission(sid, (row.get("name") or "").strip() or sid, (row.get("email") or "").strip(),
+                                       text, _percent(row.get("previous"))))
+    return subs
+
+
+def new_submission(sid, learner, email="", text="", previous=None):
+    """One learner's entry for a run, with nothing marked yet."""
+    return {
+        "id": sid, "learner": learner, "email": email, "previous": previous,
+        "text": text, "words": len(text.split()), "flags": [], "status": "received",
+        # rejected: a Marker's mark the Reviewer sent back.  issue: why the essay is waiting for the teacher.
+        "marker": None, "reviewer": None, "rejected": None, "final": None, "issue": None,
+        "feedback": None, "history": [],
+        # source: "typed", or "script" once the Clerk has transcribed a handwritten one (script: its id).
+        # script_hold: the Clerk held that script for the teacher, so nothing is marked from it yet.
+        # added: the teacher added this learner during the run, from a script whose name was not on the class list.
+        "source": "typed" if text else None, "script": None, "script_hold": False, "added": False,
+    }
+
+
+def next_learner_id(subs):
+    """An id for a learner added during a run, in the class list's own style: E12 is followed by E13."""
+    taken = {s["id"] for s in subs}
+    found = [re.fullmatch(r"([A-Za-z]*)(\d+)", s["id"]) for s in subs]
+    found = [m for m in found if m]
+    prefix = found[0].group(1) if found else "N"
+    width = max((len(m.group(2)) for m in found), default=2)
+    n = max((int(m.group(2)) for m in found if m.group(1) == prefix), default=0) + 1
+    while f"{prefix}{n:0{width}d}" in taken:
+        n += 1
+    return f"{prefix}{n:0{width}d}"
+
+
+def load_answers(data_dir, subs, assessment):
+    """Give each learner their answer script for a subject test as the work to mark: data/tests/<subject>/<id>.txt.
+
+    A learner with no script has nothing to mark, like a learner who handed in no essay. The previous marks in
+    class.csv are for the essays, so there is no previous mark for this test to compare with.
+    """
+    folder = Path(data_dir) / "tests" / assessment
+    for s in subs:
+        path = folder / f"{s['id']}.txt"
+        text = path.read_text(encoding="utf-8-sig").strip() if path.exists() else ""
+        s.update(text=text, words=len(text.split()), previous=None, source="typed" if text else None)
     return subs
 
 
@@ -208,7 +276,7 @@ def clean_mark(raw, rubric, text):
             score = max(0, min(c["max"], score))
         evidence = str(item.get("evidence") or "").strip()
         if item and not quote_in_text(evidence, text):
-            where = "the attempt log" if rubric.get("kind") == "practical" else "the essay"
+            where = {"practical": "the attempt log", "test": "the answer script"}.get(rubric.get("kind"), "the essay")
             problems.append(f"{c['name']}: the quoted evidence does not appear in {where}.")
         scores[c["id"]] = {"score": score, "evidence": evidence, "reason": str(item.get("reason") or "").strip()}
     mark = {"scores": scores, "total": sum(v["score"] for v in scores.values())}
@@ -262,7 +330,7 @@ def write_email(out_dir, sub, subject, body):
 def send_email(sub, subject, body):
     """Send by SMTP when it is configured. Returns True if the message really left."""
     host = os.getenv("SMTP_HOST")
-    if not host or os.getenv("SEND_REAL_EMAIL") != "1":
+    if not host or os.getenv("SEND_REAL_EMAIL") != "1" or not sub.get("email"):
         return False
     msg = EmailMessage()
     msg["From"] = os.getenv("SMTP_FROM", os.getenv("SMTP_USER", ""))

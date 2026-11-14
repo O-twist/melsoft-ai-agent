@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { resolveEssay, resolveScript } from "../api.js";
 import { CatchUpPlan } from "../components/SupportCard.jsx";
-import { BAND_WORDS, nextStep, outcomeName, plainReason } from "../plain.js";
+import AgreementChart from "../components/AgreementChart.jsx";
+import ClassReport from "../components/ClassReport.jsx";
+import CriteriaMeters from "../components/CriteriaMeters.jsx";
+import LevelsChart from "../components/LevelsChart.jsx";
+import StatTiles from "../components/StatTiles.jsx";
+import { BAND_WORDS, nextStep, outcomeName, plainReason, runTitle } from "../plain.js";
 import { go } from "../router.js";
 import { Av, Band, Empty, Head, Ico, Seg, Skeleton, Tabs } from "./ui.jsx";
 
@@ -27,9 +32,25 @@ export default function Learners({ state, week2, weekView, onWeek, onOpen, onAct
         <button type="button" className="l-btn" onClick={() => go("report", { mode: "class", week: weekView })}><Ico name="download" size={14} />Class report</button>
       </Head>
       {weekView === "2" && week2?.ok && <div className="l-callout" style={{ marginBottom: 14 }}>{week2.summary} The same scoring rules, after a week of the catch-up plan. Week 1 is unchanged.</div>}
-      <Tabs label="Learner lists" value={tab} onChange={setTab} tabs={[["help", "Needs help", needs.length], ["all", "All learners", board.learners.length], ["plans", "Catch-up plans", plans.length]]} />
+      <Tabs label="Learner lists" value={tab} onChange={setTab} tabs={[["help", "Needs help", needs.length], ["all", "All learners", board.learners.length], ["plans", "Catch-up plans", plans.length], ["analytics", "Class analytics"]]} />
 
-      {tab === "plans" ? (
+      {tab === "analytics" ? (
+        (state.subs || []).some((s) => s.marker) ? (
+          <div className="l-col l-embed">
+            <div className="l-small l-muted">From the latest run: <b style={{ color: "var(--ink)" }}>{runTitle(state.goal)}</b>. The marks the two markers settled on.</div>
+            <StatTiles stats={state.stats} subs={state.subs} plan={state.plan} rubric={state.rubric} />
+            <div className="l-row">
+              <div style={{ flex: 1.4, minWidth: 0 }}><AgreementChart subs={state.subs} rubric={state.rubric} onOpen={onOpen} /></div>
+              <div style={{ flex: 1, minWidth: 0 }} className="l-col"><LevelsChart subs={state.subs} rubric={state.rubric} /><CriteriaMeters subs={state.subs} rubric={state.rubric} /></div>
+            </div>
+            {state.report && <ClassReport report={state.report} noun={state.rubric?.work} onOpen={onOpen} />}
+          </div>
+        ) : (
+          <Empty title="No marks yet" action={<button type="button" className="l-btn p" onClick={() => go("new")}>Start a run</button>}>
+            The graphs show how the two markers agreed, the spread of levels and each criterion, from the latest run.
+          </Empty>
+        )
+      ) : tab === "plans" ? (
         plans.length === 0 ? (
           <Empty title="No catch-up plans yet" action={<button type="button" className="l-btn p" onClick={() => go("new")}>Start a run that asks who is falling behind</button>}>
             The Coach writes a plan for each learner who is behind when a run asks for it.

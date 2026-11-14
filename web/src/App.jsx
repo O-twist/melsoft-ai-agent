@@ -224,7 +224,7 @@ function Workspace({ auth }) {
   let body;
   if (!state) body = <div className="l-page"><div className="l-skel" style={{ height: 28, width: 260, marginBottom: 16 }} /><div className="l-kpis">{[0, 1, 2, 3].map((i) => <div key={i} className="l-skel" style={{ height: 90 }} />)}</div><div className="l-skel" style={{ height: 300 }} /></div>;
   else if (page === "today") body = <Today state={state} history={allRuns} teacher={teacher} onOpenLearner={openLearner} onAction={action} onChanged={refresh} onboarding={onboarding} />;
-  else if (page === "new") body = <NewRun state={state} mine={mine} scripts={scripts} onScripts={setScripts} test={test} uploads={uploads} practicalOn={practicalOn} start={startFromForm} initialScripts={route.query.scripts === "1"} canPause={!state.features?.replay} />;
+  else if (page === "new") body = <NewRun state={state} mine={mine} scripts={scripts} onScripts={setScripts} test={test} uploads={uploads} practicalOn={practicalOn} start={startFromForm} initialScripts={route.query.scripts === "1"} canPause={!state.features?.replay} tests={state.features?.tests || []} />;
   else if (page === "run") body = <Run state={state} events={events} tab={route.query.tab || "progress"} onTab={(t) => go("run", { tab: t })} onOpen={openLearner} onChanged={refresh} onRunAgain={() => launch(state.goal, state.assessment, null, null, state.inject_fault, false)} />;
   else if (page === "runs") body = <Runs state={state} history={allRuns} />;
   else if (page === "learners") body = <Learners state={state} week2={week2} weekView={weekView} onWeek={chooseWeek} onOpen={openLearner} onAction={action} />;

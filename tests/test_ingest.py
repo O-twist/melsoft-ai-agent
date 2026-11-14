@@ -445,6 +445,30 @@ class Workflow(unittest.TestCase):
         self.assertEqual((r._sub("E08")["source"], r.stats["resubmit"]), ("script", 0))
         self.assertNotIn("resubmit", r._sub("E08")["feedback"]["subject"].lower())
 
+    def test_a_writer_not_on_the_list_can_be_added_and_their_script_marked(self):
+        stranger = on_page(["ruan_botha_p1.jpg", "ruan_botha_p2.jpg"], lambda reply, attempt: {**reply, "name": "Musa Khoza"})
+        r = run(llm=Scripted(read_page=stranger))
+        rec = r.intake["scripts"][0]
+        self.assertEqual((rec["status"], rec["learner"]), ("held", None))
+        self.assertFalse(r.resolve_script(rec["id"], "add", name="Ruan Botha"))  # already on the class list
+        self.assertFalse(r.resolve_script(rec["id"], "add", email="not an address"))
+        self.assertTrue(r.resolve_script(rec["id"], "add", email="musa.khoza@example.com"))
+        s = r._sub("E13")  # the next id in the class list's own style
+        self.assertEqual((s["learner"], s["email"], s["added"], s["source"]), ("Musa Khoza", "musa.khoza@example.com", True, "script"))
+        self.assertEqual((rec["status"], rec["learner"], rec["decided"]), ("accepted", "E13", "teacher"))
+        self.assertTrue(wait_for(lambda: s["status"] == "delivered"))
+        self.assertEqual(r.stats["human_interventions"], 1)
+        self.assertTrue(any(e["kind"] == "HUMAN" and "added Musa Khoza" in e["msg"] for e in r.events))
+        self.assertFalse(r.resolve_script(rec["id"], "add"))  # already settled
+
+    def test_a_writer_not_on_the_list_can_be_blocked(self):
+        stranger = on_page(["ruan_botha_p1.jpg", "ruan_botha_p2.jpg"], lambda reply, attempt: {**reply, "name": "Musa Khoza"})
+        r = run(llm=Scripted(read_page=stranger))
+        rec, before = r.intake["scripts"][0], len(r.subs)
+        self.assertTrue(r.resolve_script(rec["id"], "set_aside"))
+        self.assertEqual((rec["status"], len(r.subs)), ("set_aside", before))
+        self.assertTrue(any(e["kind"] == "HUMAN" and "blocked handwritten script" in e["msg"].lower() for e in r.events))
+
     def test_a_reread_that_swaps_in_a_different_name_is_not_trusted(self):
         swap = on_page("sipho_ndlovu_p1.jpg", lambda reply, attempt: {**reply, "name": "Lerato Khumalo"} if attempt == 2 else reply)
         r = run(llm=Scripted(read_page=swap))

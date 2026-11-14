@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import ScriptIngest from "../components/ScriptIngest.jsx";
-import { DEFAULT_GOAL, PRACTICAL_GOAL } from "../components/GoalBar.jsx";
+import { DEFAULT_GOAL, PRACTICAL_GOAL, testGoal } from "../components/GoalBar.jsx";
 import { href } from "../router.js";
 import { AGENT_ROLES, Confirm, Head, Ico } from "./ui.jsx";
 
@@ -8,13 +8,16 @@ const WHOLE = " Tell me who is falling behind, with a catch-up plan for each, an
 const BEHIND = " Then tell me who is falling behind, work out why, and prepare a catch-up plan for each of them.";
 const LESSON = " Then draft a 45-minute lesson on the class's weakest area, with exercises checked against the learning outcomes.";
 
-export function options(kind) {
-  const base = kind === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL;
-  const what = kind === "practical" ? "attempt" : "essay";
+export function options(kind, tests = []) {
+  const test = tests.find((t) => t.key === kind);
+  const base = kind === "practical" ? PRACTICAL_GOAL : test ? testGoal(test.label) : DEFAULT_GOAL;
+  const what = kind === "practical" ? "attempt" : test ? "test script" : "essay";
+  const marksOnly = kind === "practical" ? "Mark the PC assembly practical against the rubric. Do not send feedback to learners: I only want the mark sheet and the class report."
+    : test ? `Mark the Grade 10 ${test.label} test against the memo. Do not send feedback to learners: I only want the mark sheet and the class report.`
+    : "Mark the Grade 12 CAT theory papers against the rubric. Do not send feedback to learners: I only want the mark sheet and the class report.";
   const list = [
     { key: "mark", title: "Mark and send feedback", text: `Marks every ${what}, second-marks it blind, writes to each learner.`, goal: base, team: ["PL", "MK", "RV", "MS"] },
-    { key: "marks", title: "Marks only, no messages", text: "Mark sheet and class report. Nothing goes to learners.",
-      goal: kind === "practical" ? "Mark the PC assembly practical against the rubric. Do not send feedback to learners: I only want the mark sheet and the class report." : "Mark the Grade 12 CAT theory papers against the rubric. Do not send feedback to learners: I only want the mark sheet and the class report.", team: ["PL", "MK", "RV", "MS"] },
+    { key: "marks", title: "Marks only, no messages", text: "Mark sheet and class report. Nothing goes to learners.", goal: marksOnly, team: ["PL", "MK", "RV", "MS"] },
     { key: "behind", title: "Who is falling behind?", text: "Adds a catch-up plan for each learner who needs one.", goal: base + BEHIND, team: ["PL", "MK", "RV", "CO", "MS"] },
     { key: "lesson", title: "Plan the next lesson", text: "Drafts a 45-minute lesson on the weakest area.", goal: base + LESSON, team: ["PL", "MK", "RV", "DS", "MS"] },
     { key: "whole", title: "The whole job", text: "Marks, feedback, catch-up plans and a lesson.", goal: base + WHOLE, team: ["PL", "MK", "RV", "CO", "DS", "MS"] },
@@ -38,14 +41,15 @@ export function likelyTeam(goal, scripts) {
 const WHAT = {
   PL: (n) => ["Plan the work", "Planner · reads your brief and picks the team"],
   CL: () => ["Read the handwritten pages", "Clerk · checks names and page numbers"],
-  MK: (n, kind) => [`Mark each ${kind === "practical" ? "attempt" : "essay"}`, `Marker · against the ${kind === "practical" ? "40" : "50"}-mark rubric`],
+  MK: (n, kind, goal, test) => test ? ["Mark each test script", `Marker · every numbered part against the ${test.label} memo`]
+    : [`Mark each ${kind === "practical" ? "attempt" : "essay"}`, `Marker · against the ${kind === "practical" ? "40" : "50"}-mark rubric`],
   RV: () => ["Second-mark without seeing the first mark", "Reviewer · disagreements go back once, or to you"],
   CO: () => ["Write catch-up plans", "Coach · three steps for each learner who is behind"],
   DS: () => ["Draft the next lesson", "Designer · on the weakest area, never sees names"],
   MS: (n, kind, goal) => [/do not send feedback/i.test(goal) ? "Write the mark sheet and class report" : "Write and send feedback", "Messenger · one message per learner"],
 };
 
-export default function NewRun({ state, mine, scripts, onScripts, test, uploads, practicalOn, start, initialScripts, canPause = true }) {
+export default function NewRun({ state, mine, scripts, onScripts, test, uploads, practicalOn, start, initialScripts, canPause = true, tests = [] }) {
   const [step, setStep] = useState(1);
   const [kind, setKind] = useState("essay");
   const [classId, setClassId] = useState(mine ? "mine" : "sample");
@@ -57,13 +61,15 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const running = state?.status === "running";
-  const opts = options(kind);
+  const opts = options(kind, tests);
+  const subject = tests.find((t) => t.key === kind);
+  const kindLabel = kind === "practical" ? "PC assembly practical" : subject ? `${subject.label} test` : "Theory essays";
   const n = (state?.subs || []).length || 12;
   const useScripts = kind === "essay" && withScripts && uploads;
   const team = likelyTeam(goal, useScripts && (scripts?.pages?.length || test.sample));
 
   const briefFor = (key) => {
-    const o = options(kind).find((x) => x.key === key);
+    const o = options(kind, tests).find((x) => x.key === key);
     if (!o || o.key === "own") return null;
     return useScripts && o.key !== "marks" ? `Read the photographed handwritten scripts first, then ${o.goal[0].toLowerCase()}${o.goal.slice(1)}` : o.goal;
   };
@@ -105,7 +111,7 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
         <div className="hd"><h2>What will happen</h2></div>
         <div className="l-steps">
           {team.map((k, i) => {
-            const [t, d] = WHAT[k](n, kind, goal);
+            const [t, d] = WHAT[k](n, kind, goal, subject);
             return <div className="l-step" key={k}><span className="b">{i + 1}</span><div><b>{t}</b><div className="n">{d}</div></div></div>;
           })}
         </div>
@@ -141,6 +147,11 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
                 {practicalOn && (
                   <button type="button" className={`l-opt ${kind === "practical" ? "on" : ""}`} disabled={classId === "mine"} onClick={() => setKind("practical")}><span className="radio" /><span><b>PC assembly practical</b><small>Attempts from the Lab, marked against outcomes H1–H6</small></span></button>
                 )}
+                {tests.map((t) => (
+                  <button type="button" key={t.key} className={`l-opt ${kind === t.key ? "on" : ""}`} disabled={classId === "mine"} onClick={() => setKind(t.key)}>
+                    <span className="radio" /><span><b>{t.label} test</b><small>Grade 10 class test, each numbered part marked against the memo</small></span>
+                  </button>
+                ))}
               </div>
             </section>
             {kind === "essay" && uploads && (
@@ -163,7 +174,7 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
           <div className="l-col" style={{ flex: 1.5 }}>
             <section className="l-card">
               <div className="bd">
-                <div className="l-small l-muted" style={{ marginBottom: 8 }}>Marking: <b style={{ color: "var(--ink)" }}>{kind === "practical" ? "PC assembly practical" : "Theory essays"}</b> for <b style={{ color: "var(--ink)" }}>{classId === "mine" ? mine?.name || "your class" : "Grade 12 CAT (sample class)"}</b> · <button type="button" className="l-link" onClick={() => setStep(1)}>change</button></div>
+                <div className="l-small l-muted" style={{ marginBottom: 8 }}>Marking: <b style={{ color: "var(--ink)" }}>{kindLabel}</b> for <b style={{ color: "var(--ink)" }}>{classId === "mine" ? mine?.name || "your class" : "Grade 12 CAT (sample class)"}</b> · <button type="button" className="l-link" onClick={() => setStep(1)}>change</button></div>
                 <h2 style={{ fontSize: 15, fontWeight: 600, margin: "4px 0 10px" }}>What should your colleague do?</h2>
                 <div className="l-opts">
                   {opts.map((o) => (
@@ -188,7 +199,7 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
               <div className="hd"><h2>Check and start</h2></div>
               <div className="bd l-small" style={{ display: "grid", gridTemplateColumns: "140px 1fr", rowGap: 10 }}>
                 <span className="l-muted">Class</span><b>{classId === "mine" ? mine?.name || "Your class" : "Grade 12 CAT (sample class)"}</b>
-                <span className="l-muted">Marking</span><b>{kind === "practical" ? "PC assembly practical" : useScripts ? "Theory essays, with handwritten scripts" : "Theory essays"}</b>
+                <span className="l-muted">Marking</span><b>{useScripts ? "Theory essays, with handwritten scripts" : kindLabel}</b>
                 <span className="l-muted">Brief</span><span>{goal || <i className="l-muted">Write a brief in step 2.</i>}</span>
                 <span className="l-muted">Colleagues</span><span>{team.map((k) => AGENT_ROLES[k][0]).join(", ")}</span>
                 <span className="l-muted">Test mode</span><span>{test.fault || (useScripts && test.ocr) ? <span className="l-chip md">On: a fault will be planted on purpose</span> : "Off"}</span>

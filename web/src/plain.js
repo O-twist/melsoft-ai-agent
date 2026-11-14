@@ -49,7 +49,8 @@ export function runProgress(state) {
   const agents = state?.agents || {};
   const status = state?.status || "idle";
   const plan = state?.plan;
-  const noun = state?.rubric?.work === "practical attempt" ? "attempt" : "essay";
+  const work = String(state?.rubric?.work || "essay");
+  const noun = work === "practical attempt" ? "attempt" : work.split(" ").pop();
   const nouns = (n) => `${n} ${noun}${n === 1 ? "" : "s"}`;
   const working = (k) => agents[k] === "working";
   const marking = toMark(subs);
@@ -146,6 +147,13 @@ export function runSummary(state) {
 /** A short title for a run, from the brief the teacher gave. */
 export function runTitle(goal) {
   const g = String(goal || "");
+  const subject = /Grade 10 (Mathematics|Physical Sciences|History) test/.exec(g);
+  if (subject) {
+    if (/lesson/i.test(g) && /falling behind|catch-up/i.test(g)) return `The whole job: ${subject[1]} test`;
+    if (/falling behind|catch-up/i.test(g)) return `Who is falling behind? (${subject[1]})`;
+    if (/do not send feedback|only want the mark sheet/i.test(g)) return `Mark the ${subject[1]} test, no messages`;
+    return `Mark the ${subject[1]} test and send feedback`;
+  }
   const practical = /practical/i.test(g);
   const what = practical ? "PC assembly practical" : "theory essays";
   if (/lesson/i.test(g) && /falling behind|catch-up/i.test(g)) return `The whole job: ${what}`;

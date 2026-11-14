@@ -1,0 +1,25 @@
+Grade 10 Mathematics class test: answers
+
+Question 1
+1.1 (2x + 3)(x - 4) = 2x² - 12 so the answer is 2x² - 12
+1.2 x² - 9 = x(x - 9) after taking out x
+1.3 2x² + 7x + 3 = 2x² + 6x + x + 3 = 2x(x + 3) + 1(x + 3) = (2x + 1)(x + 3)
+1.4 (2a³)² = 2a^5 by adding the powers
+
+Question 2
+2.1 3x - 7 = 11 so x = 11 + 7 - 3 = 15
+2.2 x² - 5x + 6 = 0 factorises as (x - 2)(x - 3) = 0 so x = 2 or x = 3
+2.3 2x + 1 > 7 so 2x > 6 and x > 3
+2.4 I guessed numbers that work: x = 5 and y = 2
+
+Question 3
+3.1 f(3) = 2(3) - 4 = 6 - 4 = 2
+3.2 Let y = 0: 0 = 2x - 4 so x = -2, the x-intercept is (-2; 0)
+3.3 Let x = 0: y = 2(0) - 4 = 4, the y-intercept is (0; 4)
+3.4 The gradient is the slope which is steep
+3.5 g(-2) = (-2)² - 1 = 4 - 1 = 3
+
+Question 4
+4.1 sin θ = 6 × 10 = 60
+4.2 The adjacent side is 10 - 6 = 4 cm
+4.3 tan θ = opposite/adjacent = 8/6 = 1,33

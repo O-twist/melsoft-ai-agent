@@ -1,0 +1,207 @@
+{
+  "kind": "test",
+  "work": "answer script",
+  "subject": "Grade 10 History",
+  "title": "Grade 10 History class test (40 marks)",
+  "task": "Answer all four questions in full sentences. Question 4 is a paragraph of about eight lines.",
+  "min_words": 20,
+  "support": {
+    "below_pct": 50,
+    "drop_points": 15,
+    "criterion_below_pct": 40
+  },
+  "criteria": [
+    {
+      "id": "q1",
+      "name": "Question 1: The French Revolution",
+      "max": 12,
+      "parts": [
+        {
+          "label": "1.1",
+          "marks": 1,
+          "question": "In which year was the Bastille stormed?",
+          "answer": "1789",
+          "accept": [
+            "1789"
+          ]
+        },
+        {
+          "label": "1.2",
+          "marks": 3,
+          "question": "Name the three estates of pre-revolutionary France.",
+          "answer": "The clergy, the nobility and the commoners (Third Estate).",
+          "points": [
+            "clergy|church|priest",
+            "nobl|nobil",
+            "common|peasant|third estate|bourgeois"
+          ]
+        },
+        {
+          "label": "1.3",
+          "marks": 3,
+          "question": "What was the slogan of the Revolution?",
+          "answer": "Liberty, Equality, Fraternity.",
+          "points": [
+            "libert",
+            "equal",
+            "fratern|brotherhood"
+          ]
+        },
+        {
+          "label": "1.4",
+          "marks": 4,
+          "question": "Give two causes of the French Revolution.",
+          "answer": "Any two: debt and bankruptcy, unfair taxes on the Third Estate, food shortages and the price of bread, Enlightenment ideas, the privileges of the first two estates.",
+          "points": [
+            "debt|bankrupt|financ",
+            "tax",
+            "bread|food|hunger|harvest",
+            "enlightenment|rousseau|voltaire|ideas",
+            "privilege|unfair|inequal"
+          ],
+          "each": 2
+        },
+        {
+          "label": "1.5",
+          "marks": 1,
+          "question": "Which king was executed in 1793?",
+          "answer": "Louis XVI",
+          "accept": [
+            "louis"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q2",
+      "name": "Question 2: The transatlantic slave trade",
+      "max": 10,
+      "parts": [
+        {
+          "label": "2.1",
+          "marks": 3,
+          "question": "Explain the triangular trade.",
+          "answer": "Ships sailed from Europe with goods to Africa, carried enslaved Africans to the Americas, and took raw materials back to Europe.",
+          "points": [
+            "europe",
+            "africa",
+            "america|caribbean|west indies|brazil"
+          ]
+        },
+        {
+          "label": "2.2",
+          "marks": 2,
+          "question": "What was the Middle Passage?",
+          "answer": "The voyage across the Atlantic that carried enslaved Africans to the Americas.",
+          "points": [
+            "atlantic|across the ocean|voyage|journey",
+            "enslaved|slaves|captive"
+          ]
+        },
+        {
+          "label": "2.3",
+          "marks": 1,
+          "question": "Name one person who campaigned to abolish the slave trade.",
+          "answer": "Any one: William Wilberforce, Olaudah Equiano, Thomas Clarkson.",
+          "accept": [
+            "wilberforce|equiano|clarkson|douglass|sharp"
+          ]
+        },
+        {
+          "label": "2.4",
+          "marks": 4,
+          "question": "Give two effects of the slave trade on Africa.",
+          "answer": "Any two: loss of young people and labour, wars and raids between groups, damage to local economies, families and communities torn apart.",
+          "points": [
+            "population|young (men|people)|labou?r",
+            "wars?\\b|conflict|raids?",
+            "econom|underdevelop|industr",
+            "famil|communit"
+          ],
+          "each": 2
+        }
+      ]
+    },
+    {
+      "id": "q3",
+      "name": "Question 3: The Cape under the VOC",
+      "max": 10,
+      "parts": [
+        {
+          "label": "3.1",
+          "marks": 1,
+          "question": "In which year did the VOC set up a station at the Cape?",
+          "answer": "1652",
+          "accept": [
+            "1652"
+          ]
+        },
+        {
+          "label": "3.2",
+          "marks": 1,
+          "question": "Who led the VOC party?",
+          "answer": "Jan van Riebeeck",
+          "accept": [
+            "riebeeck|riebeek"
+          ]
+        },
+        {
+          "label": "3.3",
+          "marks": 2,
+          "question": "Why did the VOC set up the station?",
+          "answer": "To supply fresh food and water to its ships sailing to and from the East.",
+          "points": [
+            "refreshment|suppl|fresh|food|water|vegetable|meat",
+            "ships?\\b|sailors|voyage|east|india"
+          ]
+        },
+        {
+          "label": "3.4",
+          "marks": 4,
+          "question": "Give two consequences of Dutch settlement for the Khoikhoi.",
+          "answer": "Any two: loss of land, loss of cattle, smallpox and other diseases, being forced into labour as servants.",
+          "points": [
+            "\\bland\\b",
+            "cattle|livestock",
+            "disease|smallpox",
+            "labou?r|servant|work for"
+          ],
+          "each": 2
+        },
+        {
+          "label": "3.5",
+          "marks": 2,
+          "question": "In which year was slavery abolished at the Cape?",
+          "answer": "1834",
+          "accept": [
+            "1834"
+          ],
+          "method": [
+            "183\\d"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "q4",
+      "name": "Question 4: Extended writing",
+      "max": 8,
+      "parts": [
+        {
+          "label": "4.1",
+          "marks": 8,
+          "question": "Write a paragraph explaining how the ideas of the French Revolution spread beyond France.",
+          "answer": "Any four, 2 marks each: Napoleon's wars and conquests; the ideas of rights and the Enlightenment; the Haitian slave revolt under Toussaint L'Ouverture; nationalism, constitutions and democracy in other countries; pamphlets, newspapers and print.",
+          "points": [
+            "napoleon|conquer|conquest|armies",
+            "rights|enlightenment",
+            "haiti|toussaint|slave revolt",
+            "nationalis|democra|constitution",
+            "pamphlet|newspaper|print|book"
+          ],
+          "each": 2
+        }
+      ]
+    }
+  ]
+}

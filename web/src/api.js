@@ -60,7 +60,7 @@ export async function uploadClass(files) {
   return json;
 }
 export const resolveEssay = (id, choice) => post("/api/resolve", { id, choice });
-export const resolveScript = (id, choice, learner = null) => post("/api/resolve", { kind: "script", id, choice, learner });
+export const resolveScript = (id, choice, learner = null, extra = {}) => post("/api/resolve", { kind: "script", id, choice, learner, ...extra });
 
 const RUN_KEY = "lablest.run";
 const TEXT_TYPES = { csv: "text/csv", md: "text/markdown", txt: "text/plain" };

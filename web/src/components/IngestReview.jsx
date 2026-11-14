@@ -56,12 +56,18 @@ function Decide({ script, subs, onChanged }) {
   const [learner, setLearner] = useState(suggested || free[0]?.id || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // A writer who is not on the class list: the teacher can allow the script (adding them) or block it.
+  const stranger = !script.learner && script.words > 0;
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState(script.name || "");
+  const [email, setEmail] = useState("");
 
   async function decide(choice) {
     setBusy(true);
     setError("");
     try {
-      await resolveScript(script.id, choice, script.learner ? null : learner);
+      const extra = choice === "add" ? { name: name.trim(), email: email.trim() } : {};
+      await resolveScript(script.id, choice, script.learner || choice === "add" ? null : learner, extra);
       onChanged();
     } catch (e) {
       setError(e.message);
@@ -89,10 +95,44 @@ function Decide({ script, subs, onChanged }) {
             {script.learner ? "Mark the transcript as it stands" : "This is their script: mark it"}
           </button>
         )}
+        {stranger && !adding && (
+          <button type="button" className="btn small" disabled={busy} onClick={() => setAdding(true)}>
+            <Icon name="user" size={14} />Allow: add {script.name ? `“${script.name}”` : "this learner"} to the class
+          </button>
+        )}
         <button type="button" className="btn small" disabled={busy} onClick={() => decide("set_aside")}>
-          <Icon name="x" size={14} />{script.learner ? "Set it aside and ask for it again" : "Set it aside"}
+          <Icon name={script.learner ? "x" : "ban"} size={14} />
+          {script.learner ? "Set it aside and ask for it again" : "Block it: mark nothing"}
         </button>
       </div>
+      {stranger && adding && (
+        <form
+          className="decide-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            decide("add");
+          }}
+        >
+          <p>
+            The name is not on the class list. Allowing the script adds this learner to this run's class list and marks
+            it like any other. Add them to <code>class.csv</code> to keep them for later runs.
+          </p>
+          <label>
+            <span>Learner's name</span>
+            <input value={name} required maxLength={80} disabled={busy} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label>
+            <span>Email <small>optional, for their feedback</small></span>
+            <input type="email" value={email} maxLength={120} disabled={busy} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <div className="decide-actions">
+            <button type="submit" className="btn small primary" disabled={busy || !name.trim()}>
+              <Icon name="check" size={14} />Add and mark the script
+            </button>
+            <button type="button" className="btn small" disabled={busy} onClick={() => setAdding(false)}>Cancel</button>
+          </div>
+        </form>
+      )}
       {error && <p className="form-error" role="alert"><Disc tone="critical" icon="alert" />{error}</p>}
     </div>
   );

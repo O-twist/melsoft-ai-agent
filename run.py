@@ -67,12 +67,20 @@ def request_llm():
 
 def features():
     """What this deployment can offer. Uploads need files that outlive a request, so they are local only."""
-    return {"practical": practical_lab(), "uploads": not serverless(), "replay": serverless()}
+    return {"practical": practical_lab(), "uploads": not serverless(), "replay": serverless(), "tests": tools.available_tests(DATA)}
 
 
 def practical_lab():
     """The PC assembly practical is offered when its rubric is on disk, unless PRACTICAL_LAB=0 turns it off."""
     return os.getenv("PRACTICAL_LAB", "1") != "0" and (Path(DATA) / tools.RUBRIC_FILES["practical"]).exists()
+
+
+def offered(assessment):
+    """Whether this kind of assessment can be marked: essays always, the practical behind its flag, a subject
+    test when its rubric is on disk."""
+    if assessment == "practical":
+        return practical_lab()
+    return assessment in tools.RUBRIC_FILES and (Path(DATA) / tools.RUBRIC_FILES[assessment]).exists()
 
 
 def live_attempts():
@@ -256,7 +264,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, {"error": "There is no run yet."})
             return self._send(200, run.materials())
         assessment = one("assessment") or "essay"
-        if assessment not in tools.RUBRIC_FILES or (assessment == "practical" and not practical_lab()):
+        if not offered(assessment):
             return self._send(400, {"error": "That kind of assessment is not available."})
         data_dir = DATA
         if one("class") and assessment == "essay":
@@ -268,6 +276,8 @@ class Handler(BaseHTTPRequestHandler):
         subs = tools.load_submissions(data_dir)
         if assessment == "practical":
             tools.load_attempts(data_dir, subs, rubric, live_attempts())
+        elif tools.is_test(assessment):
+            tools.load_answers(data_dir, subs, assessment)
         tools.triage(subs, rubric)
         return self._send(200, tools.materials(subs, rubric))
 
@@ -427,13 +437,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, {"error": "Give the colleague a goal."})
                 scripts = body.get("scripts") if isinstance(body.get("scripts"), dict) else None
                 assessment = str(body.get("assessment") or "essay")
-                if assessment not in tools.RUBRIC_FILES or (assessment == "practical" and not practical_lab()):
+                if not offered(assessment):
                     return self._send(400, {"error": "That kind of assessment is not available."})
-                if assessment == "practical" and scripts:
-                    return self._send(400, {"error": "Photographed scripts are essays. Clear them to mark the PC assembly practical."})
+                what = "the PC assembly practical" if assessment == "practical" else f"the {tools.TESTS.get(assessment)} test"
+                if assessment != "essay" and scripts:
+                    return self._send(400, {"error": f"Photographed scripts are essays. Clear them to mark {what}."})
                 data_dir = DATA
                 if body.get("class"):
-                    if assessment == "practical":
+                    if assessment != "essay":
                         return self._send(400, {"error": "An uploaded class is for essays. Switch back to Essays, or use the sample class."})
                     try:
                         data_dir = str(classes.class_folder(class_root(), body.get("class")))
@@ -467,7 +478,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"ok": True})
             if url.path == "/api/resolve" and self._own_run():
                 if body.get("kind") == "script":
-                    ok = current["run"].resolve_script(str(body.get("id")), str(body.get("choice")), body.get("learner") or None)
+                    ok = current["run"].resolve_script(str(body.get("id")), str(body.get("choice")), body.get("learner") or None,
+                                                       body.get("name") or None, body.get("email") or None)
                     return self._send(200, {"ok": True}) if ok else self._send(400, {"error": "That script is not waiting for that decision."})
                 ok = current["run"].resolve(str(body.get("id")), str(body.get("choice")))
                 return self._send(200, {"ok": True}) if ok else self._send(400, {"error": "That essay is not waiting for a decision."})
