@@ -12,6 +12,7 @@ import IngestReview from "../components/IngestReview.jsx";
 import LessonCard from "../components/LessonCard.jsx";
 import LevelsChart from "../components/LevelsChart.jsx";
 import LiveLog from "../components/LiveLog.jsx";
+import MaterialsPanel from "../components/MaterialsPanel.jsx";
 import LoopStatus from "../components/LoopStatus.jsx";
 import PlanCard from "../components/PlanCard.jsx";
 import SubmissionsTable from "../components/SubmissionsTable.jsx";
@@ -77,6 +78,11 @@ export default function Run({ state, events, tab, onTab, onOpen, onChanged, onRu
         <div className="l-callout bad" style={{ marginBottom: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ flex: 1 }}><b>This run stopped.</b> {failure ? failure.msg.replace(/^Run stopped:\s*/, "") : "It did not finish."} Nothing uncertain was sent.</span>
           <button type="button" className="l-btn sm p" disabled={busy} onClick={again}>Run again</button>
+        </div>
+      )}
+      {state.review?.waiting && (
+        <div className="l-embed" style={{ marginBottom: 16 }}>
+          <MaterialsPanel state={state} assessment={state.assessment} classId={null} scripts={null} onChanged={onChanged} />
         </div>
       )}
       <Tabs label="Run sections" value={tab} onChange={onTab} tabs={[

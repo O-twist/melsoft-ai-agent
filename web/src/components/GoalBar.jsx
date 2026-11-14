@@ -44,7 +44,7 @@ const EXAMPLES = [
 ];
 
 export default function GoalBar({
-  goal, onGoal, injectFault, onInjectFault, running, hasRun, onStart, error,
+  goal, onGoal, injectFault, onInjectFault, reviewFirst = true, onReviewFirst = () => {}, running, hasRun, onStart, error,
   assessment = "essay", onAssessment, practicalAvailable = false, uploads = true,
 }) {
   // The handwritten-scripts goal needs photos to be uploaded first, which a serverless deployment cannot keep.
@@ -117,6 +117,14 @@ export default function GoalBar({
           ))}
         </div>
         <div className="goal-actions">
+          <label className="switch">
+            <input type="checkbox" checked={reviewFirst} disabled={running} onChange={(e) => onReviewFirst(e.target.checked)} />
+            <span className="switch-track" />
+            <span className="switch-text">
+              Check materials first
+              <small>See the memo, rubric and scripts before it plans</small>
+            </span>
+          </label>
           <label className="switch">
             <input type="checkbox" checked={injectFault} disabled={running} onChange={(e) => onInjectFault(e.target.checked)} />
             <span className="switch-track" />

@@ -75,7 +75,7 @@ class Checks(unittest.TestCase):
         root = tempfile.mkdtemp()
         cid, summary = classes.create_class(root, DATA, CLASS, [("A1.txt", ESSAY), ("A3_Lindiwe.txt", ESSAY), ("notes.txt", b"x")])
         folder = classes.class_folder(root, cid)
-        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["class.csv", "essays", "outcomes.json", "practical_rubric.json", "rubric.json", "upload.json"])
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["class.csv", "essays", "memo.md", "outcomes.json", "practical_memo.md", "practical_rubric.json", "rubric.json", "upload.json"])
         self.assertEqual((summary["learners"], summary["essays"], summary["missing"]), (3, 2, ["A2"]))
         self.assertEqual(summary["unmatched"], ["notes.txt (no learner on the class list has this id)"])
         self.assertEqual([(p["id"], p["flags"]) for p in summary["preview"]], [("A1", []), ("A2", ["missing", "too_short"]), ("A3", [])])

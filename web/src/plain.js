@@ -66,7 +66,8 @@ export function runProgress(state) {
   if (status === "done") headline = "Finished";
   else if (status === "failed") headline = "This run stopped";
   else if (status === "running") {
-    if (!plan) headline = "Planning the work";
+    if (state.review?.waiting) headline = "Waiting for you to check the materials";
+    else if (!plan) headline = "Planning the work";
     else if (working("CL")) headline = "Reading the handwritten pages";
     else if (working("MK") && marked < marking.length) headline = `Marking ${Math.max(marked, 1)} of ${marking.length}`;
     else if (working("RV") && reviewed < marking.length) headline = `Second-marking ${Math.max(reviewed, 1)} of ${marking.length}`;

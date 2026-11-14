@@ -114,14 +114,14 @@ function Workspace({ auth }) {
     if (linked) go("learners");
   }, [linked]);
 
-  async function launch(goal, assessment, classId, pages, fault, ocr) {
-    const out = await startRun(goal, fault, pages, ocr, assessment, classId);
+  async function launch(goal, assessment, classId, pages, fault, ocr, review = false) {
+    const out = await startRun(goal, fault, pages, ocr, assessment, classId, review);
     adopt(out.run); // a serverless server hands the finished run back to be played here; a local one is polled
     refresh();
     go("run");
   }
 
-  async function startFromForm({ goal, assessment, classId, scripts: wantScripts }) {
+  async function startFromForm({ goal, assessment, classId, scripts: wantScripts, review }) {
     let pages = null;
     if (wantScripts) {
       let batch = scripts;
@@ -131,7 +131,7 @@ function Workspace({ auth }) {
       }
       if (batch?.pages?.length) pages = { batch: batch.batch, order: batch.pages.map((p) => p.id) };
     }
-    await launch(goal, assessment, classId, pages, test.fault, Boolean(pages && test.ocr));
+    await launch(goal, assessment, classId, pages, test.fault, Boolean(pages && test.ocr), review);
   }
 
   function action(row, step) {
@@ -192,6 +192,12 @@ function Workspace({ auth }) {
     setOnboarded(true);
   }
 
+  // A run that stops for the materials to be checked brings the teacher to it, from whichever page they are on.
+  const awaiting = Boolean(state?.review?.waiting);
+  useEffect(() => {
+    if (awaiting) go("run");
+  }, [awaiting, state?.id]);
+
   const page = CRUMBS[route.page] ? route.page : "today";
   const items = attentionItems(state);
   const badges = { today: items.length || null, learners: state?.risk?.counts?.High || null };
@@ -218,11 +224,11 @@ function Workspace({ auth }) {
   let body;
   if (!state) body = <div className="l-page"><div className="l-skel" style={{ height: 28, width: 260, marginBottom: 16 }} /><div className="l-kpis">{[0, 1, 2, 3].map((i) => <div key={i} className="l-skel" style={{ height: 90 }} />)}</div><div className="l-skel" style={{ height: 300 }} /></div>;
   else if (page === "today") body = <Today state={state} history={allRuns} teacher={teacher} onOpenLearner={openLearner} onAction={action} onChanged={refresh} onboarding={onboarding} />;
-  else if (page === "new") body = <NewRun state={state} mine={mine} scripts={scripts} onScripts={setScripts} test={test} uploads={uploads} practicalOn={practicalOn} start={startFromForm} initialScripts={route.query.scripts === "1"} />;
+  else if (page === "new") body = <NewRun state={state} mine={mine} scripts={scripts} onScripts={setScripts} test={test} uploads={uploads} practicalOn={practicalOn} start={startFromForm} initialScripts={route.query.scripts === "1"} canPause={!state.features?.replay} />;
   else if (page === "run") body = <Run state={state} events={events} tab={route.query.tab || "progress"} onTab={(t) => go("run", { tab: t })} onOpen={openLearner} onChanged={refresh} onRunAgain={() => launch(state.goal, state.assessment, null, null, state.inject_fault, false)} />;
   else if (page === "runs") body = <Runs state={state} history={allRuns} />;
   else if (page === "learners") body = <Learners state={state} week2={week2} weekView={weekView} onWeek={chooseWeek} onOpen={openLearner} onAction={action} />;
-  else if (page === "classes") body = <Classes state={state} mine={mine} onMine={setMine} uploads={uploads} onLoadSample={auth.enabled && uid ? loadSample : null} />;
+  else if (page === "classes") body = <Classes state={state} mine={mine} onMine={setMine} uploads={uploads} scripts={scripts} onChanged={refresh} onLoadSample={auth.enabled && uid ? loadSample : null} />;
   else if (page === "lab") body = <Lab state={state} query={route.query} onChanged={refresh} />;
   else if (page === "messages") body = <Messages state={state} />;
   else if (page === "settings") body = <Settings state={state} tab={route.query.tab || "test"} auth={auth} profile={profile} onProfile={setProfile} uploads={uploads} />;

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import ClassUpload from "../components/ClassUpload.jsx";
+import MaterialsPanel from "../components/MaterialsPanel.jsx";
 import { Av, Confirm, Head, Ico } from "./ui.jsx";
 
 /** Class lists, essays and rubrics. */
-export default function Classes({ state, mine, onMine, uploads, onLoadSample }) {
+export default function Classes({ state, mine, onMine, uploads, onLoadSample, scripts, onChanged }) {
   const [show, setShow] = useState(null);
   const subs = state?.subs || [];
   const marks = Object.fromEntries((state?.risk?.learners || []).map((l) => [l.id, l.theory]));
@@ -46,6 +47,9 @@ export default function Classes({ state, mine, onMine, uploads, onLoadSample }) 
             })}</tbody>
           </table>
         </section>
+      </div>
+      <div className="l-embed" style={{ marginTop: 16 }}>
+        <MaterialsPanel state={state} assessment="essay" classId={mine?.class || null} scripts={scripts} onChanged={onChanged} />
       </div>
       {show && (
         <Confirm title={show === "rubric" ? rubric?.title || "Rubric" : "Learning outcomes"} yes="Done" no="Close" onYes={() => setShow(null)} onNo={() => setShow(null)}>

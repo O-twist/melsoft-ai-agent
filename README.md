@@ -85,6 +85,14 @@ If the variables are missing, or Supabase returns an error, LabLess keeps scorin
 - **Windows simulator.** [win11.blueedge.me](https://win11.blueedge.me/) (Win11 in React), shown in an iframe. It does not send results back. The checklist beside it is LabLess; the Reviewer checks the proof answers.
 - **CompuClass.** The PC lab and the Windows screen started in the team's earlier app, [CompuClass v1.5](https://github.com/Channel-Zero/Compuclass-v1.5) (and [CompuClass v1.0, lutho_branch](https://github.com/Tkumalo-dev/CompuClass-v.1.0)). `web/src/components/PCAssembly.jsx` follows `screens/PCAssemblyScreen.js`: the same six steps, order, slot positions, part pictures, instructions and feedback. `web/src/components/PartModels.jsx` embeds the Sketchfab models from `RamAR.js`, `CPUAR.js`, `GPUAR.js`, `PSUAR.js`, `MotherboardAR.js` and `StorageAR.js` (lutho_branch uses the same model ids). Each shows its CC BY 4.0 credit. If Sketchfab does not load, the local PC model is shown instead. `RealAR.js` is that whole-PC model, already stored locally. The Windows iframe in `WindowsStation.jsx` is still the one from `screens/Windows11SimulatorScreen.js`.
 
+## Before planning: the teacher checks the materials
+
+With **Check materials first** on (the default), a run loads the class and then stops before the Planner plans anything. The **Memo, rubric and scripts** card shows the marking memo (`data/memo.md`, or `practical_memo.md` for the practical), the rubric, and every learner's script or attempt log, with what the checks noticed. Photographed pages appear there too. Press **Looks right, plan the work** to go on, adding a note for the Planner if you like, or **Stop** to fix something first. The card can also be opened before a run.
+
+The memo is plain text or Markdown. The Marker and the Reviewer both mark with it, alongside the rubric. Its `## Key terms` line tells the offline mock which words show an essay is on topic. Upload your own memo with your class. A class with its own rubric and no memo is marked from the rubric alone, never from the sample memo.
+
+A two-minute script for a live demo, with answers to the usual questions, is in [DEMO.md](DEMO.md).
+
 ## How to demo it
 
 1. Start in mock mode (no key needed): `python run.py`, open http://localhost:8000.

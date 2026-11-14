@@ -4,22 +4,33 @@ import os
 import re
 from pathlib import Path
 
+from . import tools
+
 MISSPELT = r"\b(alot|becuase|thier|wich|definately|recieve|untill|freind|dont|cant|then harm|then bad)\b"
 
 
-def _facts(text):
-    """What the heuristics can measure in an essay."""
+def _on_topic(text, terms):
+    """How far an answer uses the topic's own words (from the teacher's memo, else the task), from 0 to 1."""
+    hits = 0
+    for term in terms or []:
+        stem = term[:-1] if term.endswith("y") and len(term) > 4 else term  # technology -> technolog(y|ies|ical)
+        hits += len(re.findall(re.escape(stem), text, re.I))
+    return min(1.0, hits / 4)
+
+
+def _facts(text, terms=()):
+    """What the heuristics can measure in an essay. terms: the words that show it is on the topic that was set."""
     return {
         "words": len(re.findall(r"[A-Za-z']+", text)),
         "paras": len([p for p in re.split(r"\n\s*\n", text) if p.strip()]),
         "sents": [s.strip() for s in re.split(r"(?<=[.!?])\s+", text.replace("\n", " ")) if s.strip()],
         "slips": len(re.findall(r"\bi\b", text)) + len(re.findall(MISSPELT, text, re.I)),
-        "on_topic": min(1.0, len(re.findall(r"technolog|phone|internet|online|social media", text, re.I)) / 4),
+        "on_topic": _on_topic(text, terms),
     }
 
 
 def _score(text, rubric, nudge=0):
-    f = _facts(text)
+    f = _facts(text, tools.topic_terms(rubric))
     n, paras, sents, errors = f["words"], f["paras"], f["sents"], f["slips"]
     quality = {
         "content": (0.6 * min(1, n / 230) + 0.4 * min(1, paras / 5)) * (0.25 + 0.75 * f["on_topic"]),
@@ -104,7 +115,7 @@ def _three(picks, outcomes):
 def _catch_up(c, outcomes, rubric):
     """A catch-up plan for one learner, from what the heuristics can measure in the essay and the marks."""
     first, text, scores = c["first_name"], c["text"], c["scores"]
-    f = _facts(text)
+    f = _facts(text, tools.topic_terms(rubric))
     if not scores:  # nothing could be marked: the first job is a complete draft
         handed_in = f"only {f['words']} words" if f["words"] else "nothing"
         before = re.search(r"\d", c["previous"])
@@ -171,6 +182,18 @@ def _catch_up(c, outcomes, rubric):
 # ---- the Designer: the next lesson ---------------------------------------------------------------
 
 TOPIC = "'Technology has done more good than harm for young South Africans'"
+# The exercise bank below is written for the sample class's topic (and the PC practical). For any other task the
+# mock builds its exercises from the outcome's own words instead, so a teacher's own class never gets this topic.
+
+
+def _fits(outcome_id, task=""):
+    """Whether the banked text was written for the task that was set (the PC practical's always is)."""
+    return outcome_id.startswith("H") or not task or TOPIC.strip("'").lower() in task.lower()
+
+
+def _bank(outcome_id, level, task=""):
+    """A banked (task, model answer) for an outcome, only if the bank was written for the task that was set."""
+    return _EXERCISES.get(outcome_id, {}).get(level) if _fits(outcome_id, task) else None
 # Exercises the mock Designer can set, by the outcome each practises and its level: (task, model answer).
 _EXERCISES = {
     "W1": {
@@ -494,11 +517,12 @@ def _lesson(brief, outcomes):
     wanted = [(a, "support"), (a, "core"), (b, "core"), (b, "extension")] if a is not b else [(a, "support"), (a, "core"), (a, "extension")]
     exercises = []
     for n, (o, level) in enumerate(wanted, 1):
-        task, answer = _EXERCISES.get(o["id"], {}).get(level) or _TEMPLATES[level](o["text"])
+        task, answer = _bank(o["id"], level, brief.get("task", "")) or _TEMPLATES[level](o["text"])
         exercises.append({"id": f"X{n}", "outcome": o["id"], "level": level, "task": task, "answer": answer})
     ids = [e["id"] for e in exercises]
     work = brief.get("work", "essay")
-    title, exit_ticket = _LESSONS.get(a["id"]) or (
+    banked = _LESSONS.get(a["id"]) if _fits(a["id"], brief.get("task", "")) else None
+    title, exit_ticket = banked or (
         f"Working on {weakest['name'].lower()}",
         f"Write down one thing you will do differently in your next {'essay' if work == 'essay' else 'practical'} "
         "because of today's lesson, and one question you still have.")
@@ -556,7 +580,7 @@ def _align_lesson(d):
             chosen.append(pick["id"])
         if any(e["outcome"] == pick["id"] and e["level"] == "support" for e in exercises):
             continue
-        task, answer = _EXERCISES.get(pick["id"], {}).get("support") or _TEMPLATES["support"](pick["text"])
+        task, answer = _bank(pick["id"], "support", d.get("task", "")) or _TEMPLATES["support"](pick["text"])
         exercises.append({"id": _next_exercise_id(exercises), "outcome": pick["id"], "level": "support", "task": task, "answer": answer})
     support_ids = [e["id"] for e in exercises if e["level"] == "support"]
     if len(support_ids) > 1:  # the phase script named only the original support exercise
@@ -655,10 +679,9 @@ def respond(task, d):
         ]
         understanding = [f"Mark every {d.get('work', 'essay')} against the rubric and double-check the marks."]
         understanding.append("No messages to learners, as asked." if no_send else "Give each learner feedback.")
-        steps = [
-            "Check every submission and set aside any that cannot be marked",
-        ] if not any(s.get("source") == "script" for s in d["inventory"]) else [
+        steps = ([
             "Mark the transcribed handwritten scripts exactly like the typed essays",
+        ] if any(s.get("source") == "script" for s in d["inventory"]) else []) + [
             "Check every submission and set aside any that cannot be marked",
             "Mark in batches against the rubric, quoting evidence",
             "Second-mark every essay blind and send disagreements back",
@@ -687,7 +710,7 @@ def respond(task, d):
             return {"plans": [_catch_up_practical(c, d["outcomes"]) for c in d["cases"]]}
         return {"plans": [_catch_up(c, d["outcomes"], d["rubric"]) for c in d["cases"]]}
     if task == "lesson":
-        return _lesson({**d["brief"], "work": d.get("work", "essay")}, d["outcomes"])
+        return _lesson({**d["brief"], "work": d.get("work", "essay"), "task": d.get("task", "")}, d["outcomes"])
     if task == "try":
         return {"attempts": [_attempt(e, d["outcomes"]) for e in d["exercises"]]}
     if task == "fix_exercises":

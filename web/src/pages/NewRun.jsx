@@ -45,7 +45,7 @@ const WHAT = {
   MS: (n, kind, goal) => [/do not send feedback/i.test(goal) ? "Write the mark sheet and class report" : "Write and send feedback", "Messenger · one message per learner"],
 };
 
-export default function NewRun({ state, mine, scripts, onScripts, test, uploads, practicalOn, start, initialScripts }) {
+export default function NewRun({ state, mine, scripts, onScripts, test, uploads, practicalOn, start, initialScripts, canPause = true }) {
   const [step, setStep] = useState(1);
   const [kind, setKind] = useState("essay");
   const [classId, setClassId] = useState(mine ? "mine" : "sample");
@@ -53,6 +53,7 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
   const [choice, setChoice] = useState("mark");
   const [goal, setGoal] = useState(DEFAULT_GOAL);
   const [confirm, setConfirm] = useState(false);
+  const [checkFirst, setCheckFirst] = useState(true); // the run waits for the teacher to check the memo, rubric and scripts before planning
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const running = state?.status === "running";
@@ -75,7 +76,7 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
     setBusy(true);
     setError("");
     try {
-      await start({ goal: goal.trim(), assessment: kind, classId: kind === "essay" && classId === "mine" ? mine?.class : null, scripts: useScripts });
+      await start({ goal: goal.trim(), assessment: kind, classId: kind === "essay" && classId === "mine" ? mine?.class : null, scripts: useScripts, review: canPause && checkFirst });
     } catch (e) {
       setError(e.message);
       setConfirm(false);
@@ -193,6 +194,15 @@ export default function NewRun({ state, mine, scripts, onScripts, test, uploads,
                 <span className="l-muted">Test mode</span><span>{test.fault || (useScripts && test.ocr) ? <span className="l-chip md">On: a fault will be planted on purpose</span> : "Off"}</span>
               </div>
             </section>
+            {canPause && (
+              <section className="l-card">
+                <div className="bd" style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <input id="check-first" type="checkbox" checked={checkFirst} onChange={(e) => setCheckFirst(e.target.checked)} style={{ width: 18, height: 18, marginTop: 2, accentColor: "#041B3A" }} />
+                  <label htmlFor="check-first" style={{ flex: 1 }}><b>Check the memo, rubric and scripts first</b>
+                    <div className="l-small l-muted">The run loads the class, then waits for you before the Planner plans anything. You can add a note for the Planner.</div></label>
+                </div>
+              </section>
+            )}
             {useScripts && !(scripts?.pages?.length) && !test.sample && <div className="l-callout warn">No photos are added yet. Go back to step 1 to add them, or switch handwritten scripts off.</div>}
           </div>
           {preview}

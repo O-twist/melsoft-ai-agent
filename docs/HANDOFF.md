@@ -50,6 +50,11 @@ Updated Saturday 14 November 2026, about 08:00 SAST, on branch `redesign/app-she
 - 183 Python tests, including a fake Supabase that checks teacher B can't see teacher A's runs, classes or files.
 - 19 web tests. `npm run build` passes.
 
+**Merged from main (Oliver's "marking rubric added")**
+- The marking memo (`data/memo.md`, `data/practical_memo.md`) and the materials check: a run can stop before the Planner plans, so the teacher reads the memo, the rubric and every script and adds a note.
+- In the new app it is the "Check the memo, rubric and scripts first" option in New run step 3 (on by default, hidden online where a run cannot pause). While a run waits, the Run page shows the panel and the headline says "Waiting for you to check the materials". Classes can open the same panel at any time.
+- His tests (`tests/test_review.py`) pass. `DEMO.md` is his 2-minute script for the old single-page look; `docs/demo-script.md` is the one for the new app.
+
 ## What is left (in priority order)
 
 1. **Apply the accounts migration** (steps below). Until it is applied, sign-up and login still work, but saved run history and profile edits fail quietly; the browser's own history still shows.

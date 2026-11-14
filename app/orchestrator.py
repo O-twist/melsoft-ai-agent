@@ -21,18 +21,26 @@ FLAG_TEXT = {
 _run_numbers = itertools.count(1)
 
 
+class Stopped(Exception):
+    """The teacher stopped the run while checking the materials, before anything was planned."""
+
+
 def _n(count, noun):
     return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
 class Run:
     def __init__(self, llm, goal, data_dir="data", out_dir="output", inject_fault=False,
-                 pages=None, batch=None, inject_ocr_fault=False, assessment="essay", live_attempts=None, record=False):
+                 pages=None, batch=None, inject_ocr_fault=False, assessment="essay", live_attempts=None,
+                 review=False, record=False):
         self.llm, self.goal, self.inject_fault = llm, goal, inject_fault
         # record: keep a small picture of the run at every log line, so a run that finished inside one web
         # request (a serverless deployment) can be played back in the browser step by step.
         self.record, self.frames = record, []
         self.owner = None  # the teacher who started the run (None for a guest, or when accounts are off)
+        # review: the teacher reads the memo, the rubric and every script before the Planner plans anything.
+        self.review = {"wanted": bool(review), "waiting": False, "materials": None, "choice": None, "note": ""}
+        self._reviewed = threading.Event()
         # What is being marked: the essays (the default), or the PC assembly practical's attempt logs.
         self.assessment = assessment if assessment in tools.RUBRIC_FILES else "essay"
         self.live_attempts = live_attempts  # attempts recorded in the dashboard's virtual lab, which replace the files
@@ -136,6 +144,7 @@ class Run:
                 "support": self.support, "lesson": self.lesson, "consistency": self.consistency, "outcomes": self.outcomes,
                 "scripts": self.intake, "inject_ocr_fault": self.inject_ocr_fault, "assessment": self.assessment,
                 "corrections": self.corrections(),
+                "review": {k: v for k, v in self.review.items() if k != "materials"},
                 "events": self.events[max(0, since):], "next": len(self.events),
                 "llm": {"name": self.llm.name, "model": self.llm.model, "calls": self.llm.calls,
                         "served": getattr(self.llm, "served", None), "backup": getattr(self.llm, "standby", None),
@@ -153,6 +162,9 @@ class Run:
             try:
                 self._main()
                 self.status = "done"
+            except Stopped as e:
+                self.emit("PL", "ERROR", f"Run stopped: {e}")
+                self.status = "failed"
             except Exception as e:  # surface every failure in the run log
                 traceback.print_exc()
                 self.emit("PL", "ERROR", f"Run stopped: {e}")
@@ -162,6 +174,57 @@ class Run:
                 for k, state in self.agent_state.items():  # an agent the goal did not call on stays "off"
                     self.agent_state[k] = "waiting" if self.status != "done" else state if state == "off" else "done"
                 self._write_corrections()
+
+    # ---- the teacher checks the materials before planning ------------------
+    def materials(self):
+        """What the team works from (memo, rubric, every learner's script), as the teacher is shown it."""
+        with self.lock:
+            if self.review["materials"]:
+                return self.review["materials"]
+            preview = copy.deepcopy(self.subs)
+        return tools.materials(preview, self.rubric, self.pages, self.batch)
+
+    def approve(self, go, note=""):
+        """The teacher's answer while the run waits on the materials: go ahead and plan, or stop. False if not waiting."""
+        with self.lock:
+            if not self.review["waiting"] or self._reviewed.is_set():
+                return False
+            self.review["choice"] = "plan" if go else "stop"
+            self.review["note"] = str(note or "").strip()[:500]
+        self._reviewed.set()
+        return True
+
+    def _teacher_review(self):
+        """Show the teacher what the team will work from and wait for a go-ahead. Planning starts only after it."""
+        if not self.review["wanted"]:
+            return
+        preview = copy.deepcopy(self.subs)
+        if not any(s["flags"] for s in preview):
+            tools.triage(preview, self.rubric)  # the same checks the run makes, so the teacher sees what they found
+        stuff = tools.materials(preview, self.rubric, self.pages, self.batch)
+        memo = self.rubric.get("memo")
+        empty = sum(1 for s in preview if not s["text"])
+        crit = len(self.rubric["criteria"])
+        parts = [f"the memo ({memo['file']})" if memo else "no memo (marking from the rubric alone)",
+                 f"the rubric ({self.rubric['total']} marks, {crit} criteri{'on' if crit == 1 else 'a'})",
+                 f"{len(preview)} learners' {'scripts' if self.noun == 'essay' else self.noun + 's'}"
+                 + (f", {empty} with nothing handed in" if empty else "")]
+        if self.pages:
+            parts.append(_n(len(self.pages), "photographed page"))
+        with self.lock:
+            self.review.update(materials=stuff, waiting=True)
+        self.emit("PL", "WAIT", "Materials loaded: " + ", ".join(parts) + ". Waiting for the teacher to check them before I plan.")
+        self._reviewed.wait()
+        with self.lock:
+            self.review["waiting"] = False
+            choice, note = self.review["choice"], self.review["note"]
+        if choice != "plan":
+            self.emit("PL", "HUMAN", "The teacher stopped the run to change the materials." + (f" Note: {note}" if note else ""))
+            raise Stopped("the teacher stopped it before planning, to change the materials")
+        self.emit("PL", "HUMAN", "The teacher checked the memo, the rubric and the scripts and said to go ahead."
+                  + (f" Note for the team: {note}" if note else ""))
+        if note:
+            self.goal = f"{self.goal} The teacher added, after checking the materials: {note}"
 
     def corrections(self):
         """How we corrected ourselves: every time a check stopped work, as a story built from the log."""
@@ -188,14 +251,17 @@ class Run:
             self.emit("PL", "INFO", f"Goal received. {rubric['title']} loaded. {_n(found, 'attempt')} in the virtual lab's "
                                     f"logs for {_n(len(self.subs), 'learner')} on the class list."
                                     + (f" Recorded live in the lab today: {', '.join(live)}." if live else ""))
+            self._teacher_review()
         elif self.pages:
             self.emit("PL", "INFO", f"Goal received. {rubric['title']} loaded. {_n(len(self.subs), 'learner')} on the class list, "
                                     f"and {_n(len(self.pages), 'photographed page')} of handwritten work.")
+            self._teacher_review()
             self._intake()
             tools.triage(self.subs, rubric)
         else:
             tools.triage(self.subs, rubric)
             self.emit("PL", "INFO", f"Goal received. {rubric['title']} loaded. {_n(len(self.subs), 'submission')} found.")
+            self._teacher_review()
         for s in self.subs:
             if "instruction_to_marker" in s["flags"]:
                 self.emit("PL", "FLAG", "Essay contains text that tries to instruct the marker. It will be marked normally and reported to the teacher.", s["id"])

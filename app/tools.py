@@ -29,12 +29,49 @@ def load_env(path=".env"):
 RUBRIC_FILES = {"essay": "rubric.json", "practical": "practical_rubric.json"}
 
 
+MEMO_FILES = {"essay": "memo.md", "practical": "practical_memo.md"}
+STOPWORDS = set("""a about after all also an and any are as at be because been but by can do does done for from good harm
+has have how in into is it its more most much no not of on or our so than that the their them then there these they this
+those to was we were what when which who will with without you your young south african africans discuss""".split())
+
+
+def memo_terms(text):
+    """The words that show an answer is on the topic: the memo's 'Key terms' line, if it has one."""
+    match = re.search(r"^#+\s*key terms\s*$\n+(.+)", text or "", re.I | re.M)
+    if not match:
+        return []
+    return [t.strip().lower() for t in re.split(r"[,;]", match.group(1)) if t.strip()]
+
+
+# Words in a Grade 12 task line that say what kind of paper it is, not what it is about.
+STOPWORDS = set(STOPWORDS) | {"grade", "theory", "written", "response", "paper"}
+
+
+def topic_terms(rubric):
+    """What counts as on topic: the memo's key terms, else the content words of the task that was set."""
+    terms = (rubric.get("memo") or {}).get("terms") or []
+    if terms:
+        return terms
+    words = re.findall(r"[A-Za-z]{4,}", rubric.get("task", ""))
+    return sorted({w.lower() for w in words if w.lower() not in STOPWORDS and not w.lower().startswith(("essay", "word", "topic", "write"))})
+
+
+def load_memo(data_dir, assessment="essay"):
+    """The teacher's marking memo for an assessment, or None. It sits beside the rubric as plain text or Markdown."""
+    path = Path(data_dir) / MEMO_FILES[assessment]
+    if not path.exists():
+        return None
+    text = path.read_text(encoding="utf-8-sig").strip()
+    return {"file": path.name, "text": text, "terms": memo_terms(text)} if text else None
+
+
 def load_rubric(data_dir, assessment="essay"):
-    """The rubric for an assessment: the essay rubric, or the PC assembly practical's."""
+    """The rubric for an assessment (the essay rubric, or the PC assembly practical's), with its marking memo if there is one."""
     rubric = json.loads((Path(data_dir) / RUBRIC_FILES[assessment]).read_text(encoding="utf-8"))
     rubric.setdefault("kind", assessment)
     rubric.setdefault("work", "essay")
     rubric["total"] = sum(c["max"] for c in rubric["criteria"])
+    rubric["memo"] = load_memo(data_dir, assessment)
     return rubric
 
 
@@ -114,6 +151,18 @@ def triage(subs, rubric):
             s["flags"].append("too_short")
         if INJECTION.search(s["text"]):
             s["flags"].append("instruction_to_marker")
+
+
+def materials(subs, rubric, pages=None, batch=None):
+    """Everything the team will work from, for the teacher to read before anything is planned:
+    the memo, the rubric, and every learner's script (typed essay or attempt log) with what the checks noticed."""
+    return {
+        "rubric": rubric, "memo": rubric.get("memo"), "work": rubric.get("work", "essay"),
+        "learners": [{"id": s["id"], "learner": s["learner"], "words": s["words"], "flags": list(s["flags"]),
+                      "text": s["text"], "source": s.get("source")} for s in subs],
+        "pages": [{"id": p["id"], "original": p.get("original") or p["id"]} for p in pages or []],
+        "batch": batch,
+    }
 
 
 def _norm(t):
