@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from app import classes, ingest, risk, store, story, tools, week2
+from app import accounts, classes, ingest, risk, store, story, tools, week2
 from app import llm as llm_service
 from app import windows as windows_station
 from app.llm import make_llm
@@ -155,6 +155,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         url = urlparse(self.path)
         try:
+            if url.path == "/api/config":
+                return self._send(200, accounts.public_config())
+            if url.path == "/api/me":
+                return self._account(lambda token: accounts.me(token))
             if url.path == "/api/state":
                 run = current["run"]
                 since = parse_qs(url.query).get("since", ["0"])[0]
@@ -194,6 +198,17 @@ class Handler(BaseHTTPRequestHandler):
             pass  # the browser went away
         except Exception as e:  # for example a class list or rubric that cannot be read
             self._send(500, {"error": f"{type(e).__name__}: {e}"})
+
+    def _account(self, work):
+        """Run one account call as the signed-in teacher. A bad token is a 401; a database problem a 502."""
+        try:
+            return self._send(200, work(accounts.token_from(self.headers)))
+        except accounts.AuthError as e:
+            return self._send(401, {"error": str(e)})
+        except ValueError as e:
+            return self._send(400, {"error": str(e)})
+        except Exception as e:  # the database is unreachable or refused: the teacher can carry on without history
+            return self._send(502, {"error": f"Your account could not be updated: {e}"})
 
     def _risk_board(self, run, overlay):
         """Planner risk scores. A failure here must not take the rest of the dashboard down."""
@@ -343,6 +358,12 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/api/class":
                 return self._upload_class()
             body = self._body()
+            if url.path == "/api/profile":
+                return self._account(lambda token: accounts.save_profile(token, body))
+            if url.path == "/api/runs":
+                return self._account(lambda token: accounts.save_run(token, body))
+            if url.path == "/api/classes/sample":
+                return self._account(lambda token: accounts.load_sample_class(token))
             if url.path == "/api/attempt":
                 return self._save_attempt(body)
             if url.path == "/api/week2":
