@@ -15,6 +15,9 @@ export default function WindowsStation({ subs, focus, onSaved }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // The simulator takes the keyboard focus as it loads, which makes the browser jump the page down to it.
+  // So it is loaded only when someone asks for it: the button below, or a catch-up link to a Windows task.
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     windowsTasks().then((data) => setTasks(data.tasks || [])).catch((e) => setError(e.message));
@@ -22,6 +25,7 @@ export default function WindowsStation({ subs, focus, onSaved }) {
 
   useEffect(() => {
     if (focus?.learnerId) setLearner(focus.learnerId);
+    if (focus) setOpen(true);
     if (focus?.target) {
       document.getElementById(`win-task-${focus.target}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -56,12 +60,18 @@ export default function WindowsStation({ subs, focus, onSaved }) {
 
       <div className="win-layout">
         <div>
-          <iframe
-            className="win-frame"
-            title="Windows 11 simulator from win11.blueedge.me"
-            src="https://win11.blueedge.me/"
-            loading="lazy"
-          />
+          {open ? (
+            <iframe
+              className="win-frame"
+              title="Windows 11 simulator from win11.blueedge.me"
+              src="https://win11.blueedge.me/"
+            />
+          ) : (
+            <div className="win-frame win-closed">
+              <p>The Windows 11 simulator opens here, in the page.</p>
+              <button type="button" className="btn primary" onClick={() => setOpen(true)}>Start the simulator</button>
+            </div>
+          )}
           <p className="win-credit">
             Windows 11 simulator by <a href="https://win11.blueedge.me/" target="_blank" rel="noreferrer">win11.blueedge.me</a>.
             It runs in the page and does not share what the learner clicked.
