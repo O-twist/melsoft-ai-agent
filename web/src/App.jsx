@@ -1,50 +1,38 @@
 import { useCallback, useEffect, useState } from "react";
-import { fileUrl, startRun, useRun } from "./api.js";
+import { startRun, useRun } from "./api.js";
 import { useTheme } from "./theme.js";
+import { useRoute } from "./router.js";
+import { DEFAULT_GOAL, PRACTICAL_GOAL, goalFor } from "./goals.js";
+import { attention } from "./progress.js";
+import AppShell from "./components/AppShell.jsx";
+import DetailDrawer from "./components/DetailDrawer.jsx";
 import Icon from "./components/Icon.jsx";
 import { Disc } from "./components/Badge.jsx";
-import TopBar from "./components/TopBar.jsx";
-import GoalBar, { DEFAULT_GOAL, PRACTICAL_GOAL, goalFor } from "./components/GoalBar.jsx";
-import StatTiles from "./components/StatTiles.jsx";
-import TeamBoard from "./components/TeamBoard.jsx";
-import PlanCard from "./components/PlanCard.jsx";
-import LiveLog from "./components/LiveLog.jsx";
-import SubmissionsTable from "./components/SubmissionsTable.jsx";
-import AgreementChart from "./components/AgreementChart.jsx";
-import LevelsChart from "./components/LevelsChart.jsx";
-import CriteriaMeters from "./components/CriteriaMeters.jsx";
-import ClassReport from "./components/ClassReport.jsx";
-import SupportCard from "./components/SupportCard.jsx";
-import LessonCard from "./components/LessonCard.jsx";
-import ConsistencyCard from "./components/ConsistencyCard.jsx";
-import ScriptIngest from "./components/ScriptIngest.jsx";
-import IngestReview from "./components/IngestReview.jsx";
-import PCAssembly from "./components/PCAssembly.jsx";
-import CorrectionsPanel from "./components/CorrectionsPanel.jsx";
-import ClassUpload from "./components/ClassUpload.jsx";
-import DetailDrawer from "./components/DetailDrawer.jsx";
-import RiskBoard from "./components/RiskBoard.jsx";
-import ScoreReport from "./components/ScoreReport.jsx";
-import MaterialsPanel from "./components/MaterialsPanel.jsx";
-
-const DOWNLOADS = [
-  { name: "marks.csv", label: "Mark sheet (CSV)" },
-  { name: "class_report.md", label: "Class report" },
-];
+import Today from "./pages/Today.jsx";
+import NewRun from "./pages/NewRun.jsx";
+import Run from "./pages/Run.jsx";
+import Runs from "./pages/Runs.jsx";
+import Learners from "./pages/Learners.jsx";
+import Classes from "./pages/Classes.jsx";
+import Lab from "./pages/Lab.jsx";
+import Messages from "./pages/Messages.jsx";
+import Settings from "./pages/Settings.jsx";
 
 function Splash({ offline, problem }) {
   return (
     <main className="splash">
+      <span className="brand-mark"><Icon name="logo" size={22} strokeWidth="2.8" /></span>
       {problem ? (
         <>
           <h1>The server reported a problem</h1>
           <p>{problem}</p>
-          <p className="splash-hint">Check the files in the data folder, then this page will carry on by itself.</p>
+          <p className="h-note">Check the files in the data folder. This page carries on by itself once it is sorted.</p>
         </>
       ) : offline ? (
         <>
-          <h1>Cannot reach Marking Colleague</h1>
-          <p>Start the server with <code>start.cmd</code> or <code>python run.py</code>. This page reconnects by itself.</p>
+          <h1>Cannot reach your colleague</h1>
+          <p>The dashboard is open but the server is not answering.</p>
+          <p className="h-note">Start it with <code>start.cmd</code>, or <code>python run.py</code>. This page reconnects by itself.</p>
         </>
       ) : (
         <p>Loading…</p>
@@ -56,6 +44,7 @@ function Splash({ offline, problem }) {
 export default function App() {
   const { state, events, offline, problem, refresh } = useRun();
   const [theme, toggleTheme] = useTheme();
+  const [route, go] = useRoute();
   const [goal, setGoal] = useState(DEFAULT_GOAL);
   const [injectFault, setInjectFault] = useState(false);
   const [reviewFirst, setReviewFirst] = useState(true); // the run waits for the teacher to check the materials before planning
@@ -65,7 +54,6 @@ export default function App() {
   const [mine, setMine] = useState(null); // the teacher's own class, once uploaded and checked
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState(null);
-  const [view, setView] = useState("board"); // landing is the at-risk list; the marking desk stays mounted
   const [focusId, setFocusId] = useState(null);
   const [notice, setNotice] = useState("");
   const closeDrawer = useCallback(() => setOpenId(null), []);
@@ -82,26 +70,25 @@ export default function App() {
     // Deliberately keyed on the run alone: this must not fire on every poll and undo the user's typing.
   }, [runId]);
 
-  // When a run stops to have its materials checked, bring the teacher to them, from whichever view they are on.
+  // A learner can be linked to from anywhere (#/learners?id=E04); that opens their drawer.
+  const linkedId = route.page === "learners" ? route.params.id : null;
+  useEffect(() => {
+    if (linkedId) setOpenId(linkedId);
+  }, [linkedId]);
+
+  // When a run stops to have its materials checked, bring the teacher to them from wherever they are.
   const awaiting = Boolean(state?.review?.waiting);
   useEffect(() => {
-    if (!awaiting) return;
-    setView("desk");
-    requestAnimationFrame(() => document.getElementById("materials")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [awaiting, runId]);
+    if (awaiting) go("run");
+  }, [awaiting, runId, go]);
 
   if (!state) return <Splash offline={offline} problem={problem} />;
 
   const running = state.status === "running";
   const selected = state.subs.find((s) => s.id === openId);
-  const hasMarks = state.subs.some((s) => s.marker);
   const failure = state.status === "failed" ? [...events].reverse().find((e) => e.kind === "ERROR") : null;
-  const downloads = DOWNLOADS.filter((d) => state.files.includes(d.name));
-  // The Coach and the Designer only work when the goal asks for them, so their cards appear only then.
-  const wantsSupport = Boolean(state.plan?.deliver.support);
-  const wantsLesson = Boolean(state.plan?.deliver.lesson);
-  const behind = (state.support?.learners || []).map((e) => e.id);
 
+  /** Start a run from the current choices. Returns true if the server took it. */
   async function start() {
     setError("");
     setOpenId(null);
@@ -110,31 +97,31 @@ export default function App() {
       const essays = assessment === "essay";
       await startRun(goal.trim(), injectFault, essays ? pages : null, injectOcrFault, assessment, essays ? mine?.class : null, reviewFirst);
       refresh();
-      // Bring the progress, the team and the log into view: from here on the goal box is not the interesting part.
-      if (!reviewFirst) document.getElementById("progress")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return true;
     } catch (e) {
       setError(e.message);
+      return false;
     }
   }
 
-  function openReport(id) {
-    setFocusId(id);
-    setView("report");
-  }
-
+  /** The next step for a learner who needs help: open their decision, or start a run that plans their catch-up. */
   async function rescue(row) {
+    const sub = state.subs.find((s) => s.id === row.id);
+    if (sub && (sub.status === "escalated" || sub.script_hold)) {
+      setOpenId(row.id);
+      return;
+    }
     const practicalOn = Boolean(state.features?.practical) && row.practical?.in_class;
     const theoryPct = row.theory?.marked ? row.theory.percent : 0;
     const practicalPct = row.practical?.marked ? row.practical.percent : 0;
     const which = practicalOn && practicalPct < theoryPct ? "practical" : "essay";
     const existing = (state.support?.learners || []).find((entry) => entry.id === row.id);
     if (existing && (state.assessment === which || state.status === "done")) {
-      setView("desk");
       setOpenId(row.id);
       return;
     }
     if (running) {
-      setView("desk");
+      go("run");
       return;
     }
     const base = which === "practical" ? PRACTICAL_GOAL : DEFAULT_GOAL;
@@ -142,206 +129,99 @@ export default function App() {
     setAssessment(which);
     setGoal(goalText);
     setError("");
-    setNotice(`Rescue plan started for ${row.learner}. The Coach and the Designer are on this run.`);
+    setNotice(`Catch-up plan started for ${row.learner}. The Coach and the Designer are on this run.`);
     try {
       const pages = which === "essay" && scripts?.pages.length ? { batch: scripts.batch, order: scripts.pages.map((page) => page.id) } : null;
       await startRun(goalText, injectFault, pages, injectOcrFault, which, which === "essay" ? mine?.class : null, reviewFirst);
       refresh();
+      go("run");
     } catch (e) {
       setNotice("");
       setError(e.message);
     }
   }
 
-  const high = state.risk?.counts?.High;
+  const needs = attention(state);
+  const counts = { today: needs.length, learners: state.risk?.counts?.High || 0 };
+  const shared = { state, go, refresh, running };
 
   return (
-    <>
-      <TopBar
-        llm={state.llm}
-        status={state.status}
-        waiting={awaiting}
-        elapsed={state.elapsed}
-        offline={offline}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-      />
-
-      <nav className="view-nav no-print" aria-label="Views">
-        <div className="view-nav-in">
-          {[
-            ["board", "Learners at risk", high ? `${high} high` : null],
-            ["report", "Score reports", null],
-            ["desk", "Marking desk", null],
-          ].map(([key, label, extra]) => (
-            <button
-              key={key}
-              type="button"
-              className={view === key ? "on" : ""}
-              aria-current={view === key ? "page" : undefined}
-              onClick={() => setView(key)}
-            >
-              {label}
-              {extra && <span className="nav-count">{extra}</span>}
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {(offline || problem || failure) && (
-        <div className="page page-tight no-print">
-          {(offline || problem) && (
-            <div className="banner" role="status">
-              <Disc tone="serious" icon="alert" />
-              <div>
-                <b>{problem ? "The server reported a problem." : "Lost contact with the server."}</b>{" "}
-                {problem || "Showing the last thing it sent. This page reconnects by itself."}
-              </div>
-            </div>
-          )}
-          {failure && (
-            <div className="banner banner-critical" role="alert">
-              <Disc tone="critical" icon="alert" />
-              <div>
-                <b>The run stopped before it finished.</b> {failure.msg.replace(/^Run stopped:\s*/, "")}
-              </div>
-            </div>
-          )}
+    <AppShell page={route.page} go={go} state={state} offline={offline} counts={counts} testMode={injectFault || injectOcrFault}>
+      {(offline || problem) && (
+        <div className="banner" role="status">
+          <Disc tone="serious" icon="alert" />
+          <div>
+            <b>{problem ? "The server reported a problem." : "Lost contact with the server."}</b>{" "}
+            {problem || "Showing the last thing it sent. This page reconnects by itself."}
+          </div>
         </div>
       )}
 
-      {view === "board" && (
-        <div className="page no-print">
-          <RiskBoard state={state} onReport={openReport} onRescue={rescue} notice={notice} error={error} />
-        </div>
-      )}
-      {view === "report" && (
-        <div className="page">
-          <ScoreReport risk={state.risk} focusId={focusId} />
-        </div>
-      )}
+      {route.page === "today" && <Today {...shared} onOpen={setOpenId} onAddScripts={() => go("new")} />}
 
-      <main className="page" hidden={view !== "desk"}>
-        <GoalBar
+      {route.page === "new" && (
+        <NewRun
+          {...shared}
           goal={goal}
           onGoal={setGoal}
-          injectFault={injectFault}
-          onInjectFault={setInjectFault}
+          assessment={assessment}
+          onAssessment={setAssessment}
+          scripts={scripts}
+          onScripts={setScripts}
+          injectOcrFault={injectOcrFault}
+          onInjectOcrFault={setInjectOcrFault}
+          mine={mine}
+          onMine={setMine}
           reviewFirst={reviewFirst}
           onReviewFirst={setReviewFirst}
-          running={running}
-          hasRun={Boolean(state.id)}
           onStart={start}
           error={error}
-          assessment={assessment}
-          practicalAvailable={Boolean(state.features?.practical)}
-          tests={state.features?.tests || []}
-          onAssessment={(next) => {
-            setAssessment(next);
-            setGoal(goalFor(next, state.features?.tests || []));
-          }}
         />
+      )}
 
-        {/* The virtual lab, for the practical: attempts done here are marked in the next practical run. */}
-        {assessment === "practical" && <PCAssembly subs={state.subs} />}
-
-        {/* Photographed scripts are essays, so the card is offered only when essays are being marked. */}
-        {assessment === "essay" && <ClassUpload mine={mine} onMine={setMine} running={running} />}
-
-        {assessment === "essay" && (
-          <ScriptIngest
-            scripts={scripts}
-            onScripts={setScripts}
-            injectOcrFault={injectOcrFault}
-            onInjectOcrFault={setInjectOcrFault}
-            running={running}
-          />
-        )}
-
-        <MaterialsPanel
-          state={state}
-          assessment={assessment}
-          classId={assessment === "essay" ? mine?.class : null}
-          scripts={scripts}
-          onChanged={refresh}
+      {route.page === "run" && (
+        <Run
+          {...shared}
+          events={events}
+          tab={route.params.tab || "progress"}
+          onTab={(tab) => go("run", { tab })}
+          onOpen={setOpenId}
+          openId={openId}
+          failure={failure}
         />
+      )}
 
-        <StatTiles stats={state.stats} subs={state.subs} plan={state.plan} rubric={state.rubric} />
+      {route.page === "runs" && <Runs {...shared} />}
 
-        <div className="cols wide-narrow">
-          <TeamBoard agents={state.agents} spans={state.spans} now={state.t} status={state.status} />
-          <PlanCard plan={state.plan} status={state.status} />
-        </div>
+      {route.page === "learners" && (
+        <Learners
+          {...shared}
+          onOpen={setOpenId}
+          onRescue={rescue}
+          notice={notice}
+          error={error}
+          focusId={focusId}
+          onFocus={setFocusId}
+        />
+      )}
 
-        <div className="cols even">
-          <LiveLog events={events} onOpen={setOpenId} />
-          <SubmissionsTable subs={state.subs} rubric={state.rubric} behind={behind} selectedId={openId} onOpen={setOpenId} />
-        </div>
+      {route.page === "classes" && <Classes {...shared} mine={mine} onMine={setMine} assessment={assessment} />}
 
-        <CorrectionsPanel corrections={state.corrections} status={state.status} subs={state.subs} onOpen={setOpenId} />
+      {route.page === "lab" && <Lab {...shared} />}
 
-        {state.scripts && (
-          <IngestReview scripts={state.scripts} subs={state.subs} status={state.status} files={state.files} onOpen={setOpenId} onChanged={refresh} />
-        )}
+      {route.page === "messages" && <Messages {...shared} onOpen={setOpenId} />}
 
-        {hasMarks && (
-          <>
-            <div className="section-head">
-              <div>
-                <h2>Results</h2>
-                <p>
-                  {running ? "Filling in as each batch is checked." : "From the marks the two markers settled on."}
-                  {state.where && downloads.length > 0 && <> Files are saved in <span className="mono">{state.where}</span>.</>}
-                </p>
-              </div>
-              {downloads.length > 0 && (
-                <div className="downloads">
-                  {downloads.map((d) => (
-                    <a key={d.name} className="btn small" href={fileUrl(d.name)} download={d.name}>
-                      <Icon name="download" size={14} />{d.label}
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="cols wide-narrow">
-              <AgreementChart subs={state.subs} rubric={state.rubric} selectedId={openId} onOpen={setOpenId} />
-              <div className="stack">
-                <LevelsChart subs={state.subs} rubric={state.rubric} />
-                <CriteriaMeters subs={state.subs} rubric={state.rubric} />
-              </div>
-            </div>
-          </>
-        )}
-
-        {(wantsSupport || wantsLesson) && (
-          <>
-            <div className="section-head">
-              <div>
-                <h2>Beyond the marks</h2>
-                <p>
-                  {wantsSupport && wantsLesson
-                    ? "Who needs help, what to teach next, and whether the two agree"
-                    : wantsSupport ? "Who needs help" : "What to teach next"}
-                  , worked out from the settled marks.
-                </p>
-              </div>
-            </div>
-            {wantsSupport && (
-              <SupportCard support={state.support} outcomes={state.outcomes} status={state.status} files={state.files} onOpen={setOpenId} noun={state.rubric?.work} />
-            )}
-            {wantsLesson && (
-              <LessonCard lesson={state.lesson} outcomes={state.outcomes} status={state.status} files={state.files} practical={state.rubric?.kind === "practical"} />
-            )}
-            {wantsSupport && wantsLesson && (
-              <ConsistencyCard consistency={state.consistency} status={state.status} />
-            )}
-          </>
-        )}
-
-        {state.report && <ClassReport report={state.report} noun={state.rubric?.work} onOpen={setOpenId} />}
-      </main>
+      {route.page === "settings" && (
+        <Settings
+          {...shared}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          injectFault={injectFault}
+          onInjectFault={setInjectFault}
+          injectOcrFault={injectOcrFault}
+          onInjectOcrFault={setInjectOcrFault}
+        />
+      )}
 
       {selected && (
         <DetailDrawer
@@ -353,6 +233,6 @@ export default function App() {
           onChanged={refresh}
         />
       )}
-    </>
+    </AppShell>
   );
 }

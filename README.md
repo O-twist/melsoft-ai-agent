@@ -27,7 +27,24 @@ cd ..
 python run.py
 ```
 
-Open http://localhost:8000 and press **Start work**. The **Try** buttons under the goal box fill in goals that bring in different parts of the team; **The whole job** uses the six marking agents, and adding photos brings in the Clerk as the seventh.
+Open http://localhost:8000. It opens on **Today**: what needs you, who needs help, and how the last run went. Press **New run** and pick a job; **The whole job** uses the six marking agents, and adding photos brings in the Clerk as the seventh.
+
+## Finding your way around
+
+A sidebar on a laptop, and a menu button on a phone. Each page has one job, and each has its own address, so a reload or a bookmark lands back where you were.
+
+| Page | What it is for |
+|---|---|
+| **Today** (`#/today`) | What needs your decision, who needs help this week, and the last run's figures. |
+| **New run** (`#/new`) | Three steps: what is being marked, what the colleague should do, then a last look at the materials before it starts. |
+| **Runs** → **Run** (`#/run`) | One run behind tabs: Progress, Submissions, Self-checks, Clerk's reading, Results and the Activity log. |
+| **Learners** (`#/learners`) | The class sorted by who needs help first, with a plain reason and one next step. Opens each learner's marks, essay and decisions. |
+| **Classes** (`#/classes`) | The class list, what each learner handed in, and the memo, rubric and outcomes. |
+| **Lab** (`#/lab`) | The PC assembly practical, the parts in 3D, and the attempts on record. |
+| **Messages** (`#/messages`) | Every message the Messenger wrote, and the Coach's catch-up plans. |
+| **Settings & test mode** (`#/settings`) | The fault switches, which model is answering, and light or dark. |
+
+The two fault switches live in **Settings**, away from **Start work**, so a mark cannot be spoiled by accident. While either is on, the top bar says **Test mode on**.
 
 While working on the dashboard, run `python run.py` in one terminal and `npm run dev` inside `web` in another, then open http://localhost:5173. Changes appear immediately and API calls are forwarded to the Python server.
 
@@ -42,7 +59,7 @@ Tests: `python -m unittest discover tests` (all offline; `tests/test_ingest.py` 
 
 ## Before planning: the teacher checks the materials
 
-With **Check materials first** on (the default), a run loads the class and then stops before the Planner plans anything. The **Memo, rubric and scripts** card shows the marking memo (`data/memo.md`, or `practical_memo.md` for the practical), the rubric, and every learner's script or attempt log, with what the checks noticed. Photographed pages appear there too. Press **Looks right, plan the work** to go on, adding a note for the Planner if you like, or **Stop** to fix something first. The card can also be opened before a run.
+With **Check the materials first** on (the default, on step 3 of **New run**), a run loads the class and then stops before the Planner plans anything. The **Memo, rubric and scripts** card shows the marking memo (`data/memo.md`, or `practical_memo.md` for the practical), the rubric, and every learner's script or attempt log, with what the checks noticed. Photographed pages appear there too. Press **Looks right, plan the work** to go on, adding a note for the Planner if you like, or **Stop** to fix something first. The waiting card appears on the **Run** page, and the same materials can be read any time on **Classes**.
 
 The memo is plain text or Markdown. The Marker and the Reviewer both mark with it, alongside the rubric. Its `## Key terms` line tells the offline mock which words show an essay is on topic. Upload your own memo with your class. A class with its own rubric and no memo is marked from the rubric alone, never from the sample memo.
 
@@ -51,17 +68,17 @@ A two-minute script for a live demo, with answers to the usual questions, is in 
 ## How to demo it
 
 1. Start in mock mode (no key needed): `python run.py`, open http://localhost:8000.
-2. **Marking and self-correction.** Tick **Inject a fault** and press **Start work**. One mark is corrupted after the Marker finishes; watch the Reviewer catch it blind in the live log (filter **Corrections**) and the Marker correct it.
-3. **Handwritten scripts.** In the **Handwritten scripts** card press **Use the sample scripts** (five photos: Ruan Botha's full essay on two pages, Sipho Ndlovu's on two, and page 1 of 2 of Bongani Sithole's). Tick **Inject an OCR fault**, choose the **Handwritten scripts too** goal and press **Start work**. In the log and the **Clerk's reading** card you see:
+2. **Marking and self-correction.** In **Settings & test mode** switch on **Plant a wrong mark**. Go to **New run**, pick **Mark and send feedback**, and start. On **Run → Progress** the headline counts the work ("Second-marking 6 of 10"); one mark is corrupted after the Marker finishes, and **Run → Self-checks** shows the Reviewer catching it blind and the Marker correcting it.
+3. **Handwritten scripts.** On **New run**, step 1, press **Use the sample scripts** (five photos: Ruan Botha's full essay on two pages, Sipho Ndlovu's on two, and page 1 of 2 of Bongani Sithole's), or **Take photos** to use the device's camera. Switch on **Plant a bad handwriting reading** in Settings, choose the **Handwritten scripts too** goal and start. On **Run → Clerk's reading** and the Activity log you see:
    - the Planner deciding the photos need reading, and the Clerk lane joining the team;
    - the injected fault caught by the line count (6 of 13 lines transcribed) and fixed by a re-read;
    - Sipho's surname first read as "Ndlovo", not on the class list, so re-read as "Ndlovu" and matched;
    - Bongani's page 2 of 2 missing even after a re-read, so his script is held and nothing is marked from it.
-4. Press **Mark the transcript as it stands** on Bongani's script (or **Set it aside**). The Marker and Reviewer mark it, the Messenger writes his feedback, and the Teacher decisions tile goes up.
-5. Open **How we corrected ourselves**: every correction from steps 2 to 4 is there as one story, with the planted ones marked. **Corrections** downloads it.
-6. Download **All pages (PDF)**, each learner's PDF and the **Clerk's report** from the card. Everything is also in `output/<run>/scripts/`.
-7. **The virtual lab.** With **PC assembly practical** selected, choose a learner in the **Virtual lab** card, press **Start the build** and drag the parts in (try one out of turn, and drop one off its slot). **Save for marking**, then run **The whole job**: that learner is marked from the attempt just made, and the lesson shows the 3D PC.
-8. **The PC assembly practical.** Switch the goal bar to **PC assembly practical**, pick **The whole job**, tick **Inject a fault** and press **Start work**. The planted mark gives Sipho full marks for build order although his log shows two parts tried out of turn: code rejects it against the log ("at most 9") and the Reviewer's blind mark disagrees too. Kabelo, Ruan and Bongani get hardware catch-up plans, the Designer's lesson targets build order, and the cross-check sends the lesson back once because it had no support work for Kabelo's efficiency gap.
+4. Bongani's held script is on **Today**, under **Needs your attention**. Press **Decide**, then **Mark the transcript as it stands** (or **Set it aside**). The Marker and Reviewer mark it and the Messenger writes his feedback. A script whose name is not on the class list can instead be **allowed** (the writer joins this run's class list) or **blocked**.
+5. Open **Run → Self-checks**: every correction from steps 2 to 4 is there as one story, with the planted ones marked. **Run → Results** downloads it as the self-check report.
+6. Download **Photo PDF**, each learner's PDF and the **Clerk's report** from **Run → Results**. Everything is also in `output/<run>/scripts/`.
+7. **The virtual lab.** On **Lab → PC assembly**, choose a learner, press **Start the build** and drag the parts in (try one out of turn, and drop one off its slot). **Save for marking**, then run **The whole job** against the practical: that learner is marked from the attempt just made, and the lesson shows the 3D PC.
+8. **The PC assembly practical.** On **New run**, step 1, choose **PC assembly practical**, pick **The whole job**, switch on **Plant a wrong mark** and start. The planted mark gives Sipho full marks for build order although his log shows two parts tried out of turn: code rejects it against the log ("at most 9") and the Reviewer's blind mark disagrees too. Kabelo, Ruan and Bongani get hardware catch-up plans, the Designer's lesson targets build order, and the cross-check sends the lesson back once because it had no support work for Kabelo's efficiency gap.
 
 ## The team
 
@@ -86,13 +103,13 @@ The Coach and the Designer work only when the goal asks for them. Otherwise thei
 5. **Knows when to stop.** If the two still disagree, the essay goes to the teacher with both marks and one button to decide. Nothing uncertain is sent to a learner.
 6. **Feedback is checked too.** A message that has the wrong mark, the wrong name, or mentions another learner is sent back to the Messenger, and held if it fails twice.
 
-Tick **Inject a fault** to prove it: one mark is deliberately corrupted after the Marker finishes, and the Reviewer catches it without being told. If the goal asks for a lesson, one exercise is also given the wrong outcome label, and the blind trial catches that too.
+Switch on **Plant a wrong mark** in **Settings & test mode** to prove it: one mark is deliberately corrupted after the Marker finishes, and the Reviewer catches it without being told. If the goal asks for a lesson, one exercise is also given the wrong outcome label, and the blind trial catches that too.
 
-**How we corrected ourselves.** After a run, this panel tells every time a check stopped work, as one story each: what was wrong, which colleague caught it and how (a code check, the blind second mark, the blind trial, the cross-check), who fixed it, and how it ended (fixed, held for the teacher, dropped, stopped by code, or decided by the teacher). Planted faults are marked as such. It is built from the run's own log (`app/story.py`), not written by a model, and saved as `output/<run>/corrections.md` (download it from the panel).
+**Self-checks.** After a run, the **Run → Self-checks** tab tells every time a check stopped work, as one story each: what was wrong, which colleague caught it and how (a code check, the blind second mark, the blind trial, the cross-check), who fixed it, and how it ended (fixed, held for the teacher, dropped, stopped by code, or decided by the teacher). Planted faults are marked as such. It is built from the run's own log (`app/story.py`), not written by a model, and saved as `output/<run>/corrections.md` (download it from **Run → Results**).
 
 ## The intake colleague: handwritten scripts
 
-Add photos in the **Handwritten scripts** card (JPEG or PNG, one page per photo, in any order) and run a goal.
+Add photos on **New run**, step 1 (JPEG or PNG, one page per photo, in any order), by file, by drag and drop, or with the device's camera, and start a run.
 
 1. **The Planner decides.** With photos waiting, the Planner reads the goal and decides whether the Clerk should read them first, and says why in the log. A goal such as "mark only the typed essays, ignore the photos" leaves them unread.
 2. **The Clerk transcribes.** Each page is read by a vision model (Gemini `inline_data`, or an image part on OpenRouter), keeping the learner's own spelling, with `[?]` for words it cannot read.

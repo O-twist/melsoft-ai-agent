@@ -3,6 +3,34 @@ const PATHS = {
   logo: <path d="m7 12.5 3.2 3.2L17 8.5" />,
   play: <path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none" />,
   check: <path d="M20 6 9 17l-5-5" />,
+  home: <path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  people: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c.8-3.6 3.3-5.5 6.5-5.5s5.7 1.9 6.5 5.5" />
+      <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.8 3 2.6 3.5 5.2" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M4 5h16v14H4z" />
+      <path d="M8 9.5h8M8 13.5h5" />
+    </>
+  ),
+  cog: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4 5.3 5.3" />
+    </>
+  ),
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4-4" />
+    </>
+  ),
   camera: (
     <>
       <path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z" />

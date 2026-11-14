@@ -13,13 +13,13 @@ The goal: show the colleague **planning**, **acting** and **correcting itself**,
 
 | Time | Do | Say |
 |---|---|---|
-| 0:00 | Open **Marking desk**. Pick **Mark and send feedback**. Leave **Check materials first** on and switch on **Inject a fault**. Press **Start work**. | "I give it a goal in plain English, the way I'd ask a colleague." |
-| 0:10 | The **Memo, rubric and scripts** card opens and the top bar says *Waiting for you to check the materials*. Click **Memo**, then **Rubric**, then **Scripts** and step to E06 (a soccer essay: off topic), E08 (9 words) and E11 (tries to instruct the marker). | "Before it plans anything, it shows me what it will work from: my memo, my rubric and every learner's script. Nothing has been planned or marked yet." |
+| 0:00 | In **Settings & test mode** switch on **Plant a wrong mark**. Open **New run**, pick **Mark and send feedback**, leave **Check the materials first** on, and press **Start work**. | "I give it a goal in plain English, the way I'd ask a colleague." |
+| 0:10 | It lands on **Run** with the **Memo, rubric and scripts** card open, waiting for you. Click **Memo**, then **Rubric**, then **Scripts** and step to E06 (a soccer essay: off topic), E08 (9 words) and E11 (tries to instruct the marker). | "Before it plans anything, it shows me what it will work from: my memo, my rubric and every learner's script. Nothing has been planned or marked yet." |
 | 0:35 | In the note box type: *Don't email learners yet, I only want the mark sheet and class report.* Press **Looks right, plan the work**. | "I can steer it here. That note goes to the Planner with my goal." |
-| 0:45 | **Plan** card and the team lanes. The plan says no messages to learners; the Coach and Designer lanes read *Not needed*; E08 is set aside for resubmission. | "**Planning**: it read my goal and the scripts and decided what to do and who to bring in. My note changed the plan." |
-| 1:00 | **Live log**: the Marker marks batch 1, then *Fault injection is on: … changed from X to Y. Nobody told the Reviewer.* | "**Acting**: it marks in batches against the rubric and memo, quoting the essay. Now I've planted a mistake." |
-| 1:15 | Filter the log on **Corrections**: the Reviewer's blind mark disagrees, *Sent back to the Marker*, then *Corrected the mark*. | "**Correcting itself**: the Reviewer marks every essay again without seeing the first mark. Code compares the two, finds the gap, and sends it back. The Marker fixes it." |
-| 1:40 | Open **How we corrected ourselves**, then download **Mark sheet (CSV)**. | "Every correction is written up as a story, and only agreed marks are delivered." |
+| 0:45 | **Run → Progress**: the headline counts the work, with the step list, the plan and the team lanes beside it. The plan says no messages to learners; the Coach and Designer lanes read *Not needed*; E08 is set aside for resubmission. | "**Planning**: it read my goal and the scripts and decided what to do and who to bring in. My note changed the plan." |
+| 1:00 | **Run → Activity log**: the Marker marks batch 1, then *Fault injection is on: … changed from X to Y. Nobody told the Reviewer.* | "**Acting**: it marks in batches against the rubric and memo, quoting the essay. Now I've planted a mistake." |
+| 1:15 | **Run → Self-checks**: the Reviewer's blind mark disagrees, *Sent back to the Marker*, then *Corrected the mark*. | "**Correcting itself**: the Reviewer marks every essay again without seeing the first mark. Code compares the two, finds the gap, and sends it back. The Marker fixes it." |
+| 1:40 | Stay on **Self-checks**, then download **Mark sheet (CSV)** from **Run → Results**. | "Every correction is written up as a story, and only agreed marks are delivered." |
 
 ## Questions you may get
 
