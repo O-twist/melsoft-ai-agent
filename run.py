@@ -307,10 +307,11 @@ class Handler(BaseHTTPRequestHandler):
             store.clear_week()
             return self._send(200, {"ok": True})
         data_dir = self._class_dir()
-        run = current["run"]
-        live = run.live_attempts if run and run.live_attempts else live_attempts()
         learner = str(body.get("learner") or "").strip() or None
-        result = week2.project(data_dir, live_dir=live, windows=merged_windows(data_dir), learner_id=learner)
+        # Week 2 is measured from the class as it was marked in Week 1. Builds and Windows proofs handed in
+        # from the lab since then are catch-up practice: they are part of the rescue week, not of its starting
+        # point, so they are left out here. That keeps the before and after the same every time it is run.
+        result = week2.project(data_dir, learner_id=learner)
         if not result.get("ok"):
             return self._send(400, {"error": result.get("error") or "Week 2 could not be scored."})
         current["week2"] = result

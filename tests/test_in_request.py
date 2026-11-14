@@ -155,6 +155,22 @@ class InOneRequest(unittest.TestCase):
                               row["overall_before"], row["overall_after"]), (53, 22, "High", "Low", 57, 78))
             server.current["week2"] = None
 
+    def test_week_two_starts_from_week_one_as_marked_whatever_was_practised_since(self):
+        server.current["run"] = None
+        proofs = {"S1": "CAT Rescue", "S2": "Windows 11 Release", "S3": "Select a theme to apply", "S4": "Liber-V NS14A8"}
+        self.assertEqual(self.request("/api/windows", {"learner_id": "E10", "answers": proofs})[0], 200)
+        try:
+            board = self.request("/api/risk")[1]
+            now = next(row for row in board["learners"] if row["id"] == "E10")
+            self.assertLess(now["risk"], 53)  # the practice counts on the board straight away
+            code, out = self.request("/api/week2", {"learner": "E10"})
+            row = next(c for c in out["changes"] if c["id"] == "E10")
+            self.assertEqual((row["risk_before"], row["risk_after"], row["band_before"], row["band_after"],
+                              row["overall_before"], row["overall_after"]), (53, 22, "High", "Low", 57, 78))
+        finally:
+            (server.live_windows() / "E10.json").unlink()
+            server.current["week2"] = None
+
     def test_a_local_server_still_runs_in_the_background(self):
         with mock.patch.dict(os.environ):
             os.environ.pop("VERCEL", None)
